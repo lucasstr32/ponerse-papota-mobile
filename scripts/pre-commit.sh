@@ -9,5 +9,5 @@ if ! command -v gitleaks >/dev/null 2>&1; then
   exit 1
 fi
 
-gitleaks git --staged --redact --no-banner .
+gitleaks protect --staged --redact --no-banner
 npm run --silent check
