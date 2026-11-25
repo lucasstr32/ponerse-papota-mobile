@@ -32,6 +32,7 @@ const config: ExpoConfig = {
   userInterfaceStyle: 'automatic',
   android: {
     package: applicationId,
+    versionCode: 1,
     // The dev client needs the network to reach Metro; other builds are offline.
     blockedPermissions: variant === 'development' ? [] : ['android.permission.INTERNET'],
   },
