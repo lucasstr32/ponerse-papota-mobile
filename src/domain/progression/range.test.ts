@@ -1,14 +1,21 @@
 import { assert, integer, property } from 'fast-check';
 
-import { makeExercise, makeSlot, sessionWith } from '../builders.fixtures';
+import {
+  makeEntry,
+  makeExercise,
+  makeSession,
+  makeSet,
+  makeSlot,
+  sessionWith,
+} from '../builders.fixtures';
 import { slotHistory } from '../history';
-import type { SessionRecord } from '../types';
+import type { ExerciseInfo, SessionRecord, SlotConfig } from '../types';
 import { planRange } from './range';
 
 const plan = (
   sessions: SessionRecord[],
-  slotOverrides = {},
-  exerciseOverrides = {},
+  slotOverrides: Partial<SlotConfig> = {},
+  exerciseOverrides: Partial<ExerciseInfo> = {},
 ): ReturnType<typeof planRange> => {
   const slot = makeSlot(slotOverrides);
   return planRange(slot, makeExercise(exerciseOverrides), slotHistory(sessions, slot));
@@ -22,6 +29,36 @@ describe('planRange', () => {
     expect(sets).toHaveLength(3);
     expect(sets.every((s) => s.targetKg === 42.5 && s.targetReps === '10–12')).toBe(true);
     expect(sets.every((s) => s.type === 'work')).toBe(true);
+  });
+
+  it('uses the heaviest set when the weights vary within a session', () => {
+    const session = makeSession({
+      id: 'a',
+      createdAt: at(1),
+      entries: [
+        makeEntry({
+          sets: [40, 42.5, 40].map((kg) => makeSet({ kg, reps: 12 })),
+        }),
+      ],
+    });
+    expect(plan([session]).sets[0]?.targetKg).toBe(45);
+  });
+
+  it('plans from the last session only, even if an older one reached the top', () => {
+    const { sets } = plan([
+      sessionWith('a', at(1), 40, [12, 12, 12]),
+      sessionWith('b', at(2), 45, [12, 12, 10]),
+    ]);
+    expect(sets[0]?.targetKg).toBe(45);
+  });
+
+  it('keeps a zero added load on a bodyweight exercise at the top of the range', () => {
+    const { sets } = plan(
+      [sessionWith('a', at(1), 0, [12, 12, 12])],
+      { kg: null },
+      { bodyweight: true },
+    );
+    expect(sets.map((s) => s.targetKg)).toEqual([0, 0, 0]);
   });
 
   it('keeps the weight when a set fell short', () => {
