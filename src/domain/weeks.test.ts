@@ -47,6 +47,15 @@ describe('parseWeeks', () => {
     expect(parseWeeks('0x5@60 + 2x5@50')).toEqual([[{ sets: 2, reps: '5', kg: 50, pct: false }]]);
   });
 
+  it('drops segments with absurd set counts', () => {
+    expect(parseWeeks('999x5@60')).toEqual([[{ sets: 999, reps: '5', kg: 60, pct: false }]]);
+    expect(parseWeeks('1000x5@60')).toEqual([]);
+    expect(parseWeeks('999999999x5@60')).toEqual([]);
+    expect(parseWeeks('1000x5@60 + 2x5@50')).toEqual([
+      [{ sets: 2, reps: '5', kg: 50, pct: false }],
+    ]);
+  });
+
   it('parses rendered segments back to the same values', () => {
     const segment = tuple(
       integer({ min: 1, max: 9 }),

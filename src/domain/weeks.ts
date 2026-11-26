@@ -30,7 +30,7 @@ export function parseWeeks(text: string): WaveWeek[] {
     const segments: WaveSegment[] = [];
     for (const m of line.toLowerCase().matchAll(SEGMENT)) {
       const sets = Number(m[1]);
-      if (sets === 0) continue;
+      if (sets === 0 || sets >= 1000) continue;
       const rawKg = m[3] ?? '';
       const pct = rawKg.endsWith('%');
       const kg = num(pct ? rawKg.slice(0, -1) : rawKg);
