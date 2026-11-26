@@ -13,10 +13,13 @@ describe('reps', () => {
     expect(repMax('10')).toBe(10);
   });
 
-  it.each(['máx', 'MAX', 'Máx', 'max'])('treats %j as one rep minimum and no maximum', (text) => {
-    expect(repMin(text)).toBe(1);
-    expect(repMax(text)).toBeNull();
-  });
+  it.each(['máx', 'MAX', 'Máx', 'max', 'MÁX'])(
+    'treats %j as one rep minimum and no maximum',
+    (text) => {
+      expect(repMin(text)).toBe(1);
+      expect(repMax(text)).toBeNull();
+    },
+  );
 
   it.each(['', 'abc', '8-', '-8', '8–12–14', '1,5'])('returns null for %j', (text) => {
     expect(repMin(text)).toBeNull();

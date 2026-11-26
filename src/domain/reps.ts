@@ -1,12 +1,13 @@
 const RANGE = /^(\d+)\s*[–-]\s*(\d+)$/;
 const SINGLE = /^\d+$/;
-const MAX = /^m[aá]x$/i;
+// Compared after lowercasing the text, so the pattern needs no case-insensitive flag.
+const MAX = /^m[aá]x$/;
 
 type Parsed = { min: number; max: number | null } | null;
 
 function parse(text: string): Parsed {
   const t = text.trim();
-  if (MAX.test(t)) return { min: 1, max: null };
+  if (MAX.test(t.toLowerCase())) return { min: 1, max: null };
   if (SINGLE.test(t)) return { min: Number(t), max: Number(t) };
   const m = RANGE.exec(t);
   if (m === null) return null;
