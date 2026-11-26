@@ -13,7 +13,7 @@ Offline Android app to plan strength routines, log every set and measure progres
 ## Getting started
 
 ```bash
-npm ci
+npm ci --ignore-scripts
 npm run dev
 ```
 
