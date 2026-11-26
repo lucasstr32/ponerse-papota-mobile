@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Generated native projects (Continuous Native Generation)
+/android/
+/ios/
+.kotlin/
+local.properties
+
+# Build outputs
+*.apk
+*.aab
+*.ipa
+*.tsbuildinfo
+coverage/
+.metro-health-check*
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+credentials.json
+google-service-account*.json
+*.jks
+*.keystore
+*.key
+*.pem
+*.p8
+*.p12
+*.mobileprovision
+
+# Logs and OS files
+*.log
+.DS_Store
