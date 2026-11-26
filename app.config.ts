@@ -33,6 +33,8 @@ const config: ExpoConfig = {
   android: {
     package: applicationId,
     versionCode: 1,
+    // Keep the local database out of Android Auto Backup (cloud); the app has its own file backup.
+    allowBackup: false,
     // The dev client needs the network to reach Metro; other builds are offline.
     blockedPermissions: variant === 'development' ? [] : ['android.permission.INTERNET'],
   },

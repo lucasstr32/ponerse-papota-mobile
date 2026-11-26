@@ -36,6 +36,13 @@ describe('app config', () => {
     expect(android?.blockedPermissions).not.toContain(INTERNET);
   });
 
+  it.each([undefined, 'development', 'preview', 'production'])(
+    'disables Android Auto Backup in variant %s',
+    (variant) => {
+      expect(loadConfig(variant).android?.allowBackup).toBe(false);
+    },
+  );
+
   it('targets Android only, API 26 or later', () => {
     const config = loadConfig();
     expect(config.platforms).toEqual(['android']);
