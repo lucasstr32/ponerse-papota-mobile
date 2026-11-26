@@ -39,6 +39,7 @@ const config: ExpoConfig = {
   plugins: [
     'expo-router',
     'expo-localization',
+    'expo-splash-screen',
     ['expo-build-properties', { android: { minSdkVersion: 26 } }],
   ],
   experiments: { typedRoutes: true },
