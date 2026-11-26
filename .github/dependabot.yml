@@ -17,6 +17,14 @@ updates:
       - dependency-name: '@react-native/*'
       - dependency-name: '@types/react'
       - dependency-name: 'typescript'
+      - dependency-name: 'eslint-config-expo'
+      # Majors held back on purpose: ESLint stays on 9, Jest follows jest-expo.
+      - dependency-name: 'eslint'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'jest'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@types/jest'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /
