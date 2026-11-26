@@ -10,6 +10,11 @@ export function hasWork(entry: EntryRecord): boolean {
   return workSets(entry).some((s) => s.reps !== null);
 }
 
+/** Reps of the work sets that have them, in order. */
+export function loggedReps(entry: EntryRecord): number[] {
+  return workSets(entry).flatMap((s) => (s.reps === null ? [] : [s.reps]));
+}
+
 function time(iso: string): number {
   return Date.parse(iso);
 }

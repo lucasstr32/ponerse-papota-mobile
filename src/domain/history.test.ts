@@ -1,5 +1,5 @@
 import { makeEntry, makeSession, makeSet, makeSlot, sessionWith } from './builders.fixtures';
-import { hasWork, slotHistory, workSets } from './history';
+import { hasWork, loggedReps, slotHistory, workSets } from './history';
 
 describe('workSets and hasWork', () => {
   it('keeps work and control sets and drops warm-ups', () => {
@@ -22,6 +22,20 @@ describe('workSets and hasWork', () => {
 
   it('counts zero reps as loaded', () => {
     expect(hasWork(makeEntry({ sets: [makeSet({ reps: 0 })] }))).toBe(true);
+  });
+});
+
+describe('loggedReps', () => {
+  it('lists the reps of work sets and skips empty ones and warm-ups', () => {
+    const entry = makeEntry({
+      sets: [
+        makeSet({ type: 'warmup', reps: 5 }),
+        makeSet({ reps: 10 }),
+        makeSet({ reps: null }),
+        makeSet({ type: 'control', reps: 0 }),
+      ],
+    });
+    expect(loggedReps(entry)).toEqual([10, 0]);
   });
 });
 
