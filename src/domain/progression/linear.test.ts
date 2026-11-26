@@ -99,6 +99,11 @@ describe('planLinear', () => {
     expect(targetOf([entry])).toBe(62.5);
   });
 
+  it('snaps the raised target to two decimals', () => {
+    const tiny = makeSlot({ ...slot, kg: 0.1, increment: 0.2 });
+    expect(planLinear(tiny, exercise, [session(0.1, true)]).sets[0]?.targetKg).toBe(0.3);
+  });
+
   it('prefers the slot increment', () => {
     const custom = makeSlot({ ...slot, increment: 5 });
     expect(planLinear(custom, exercise, [session(60, true)]).sets[0]?.targetKg).toBe(65);
@@ -154,14 +159,16 @@ describe('planLinear', () => {
       property(
         integer({ min: 0, max: 800 }),
         integer({ min: 1, max: 40 }),
-        integer({ min: 1, max: 40 }),
+        boolean(),
         (k, incTenths, quarter) => {
-          const start = quarter % 2 === 0 ? k / 10 : k / 4;
-          const decimalSlot = makeSlot({ ...slot, kg: start, increment: incTenths / 10 });
-          const first = planLinear(decimalSlot, exercise, []).sets[0]?.targetKg ?? 0;
+          const start = quarter ? k / 4 : k / 10;
+          const inc = incTenths / 10;
+          const decimalSlot = makeSlot({ ...slot, kg: start, increment: inc });
+          const first = planLinear(decimalSlot, exercise, []).sets[0]?.targetKg ?? NaN;
           const loaded = num(formatDecimal(first));
           const second = planLinear(decimalSlot, exercise, [session(first, true, loaded)]);
-          const target = second.sets[0]?.targetKg ?? 0;
+          const target = second.sets[0]?.targetKg ?? NaN;
+          expect(target).toBe(Math.round((start + inc) * 100) / 100);
           expect(second.info).toEqual({ mode: 'linear', fails: 0, lastOutcome: 'achieved' });
           const third = planLinear(decimalSlot, exercise, [
             session(first, true, loaded),

@@ -85,4 +85,21 @@ describe('snapKg', () => {
       }),
     );
   });
+
+  it('stays within half a hundredth of the input', () => {
+    assert(
+      property(weight, (x) => {
+        expect(Math.abs(snapKg(x) - x)).toBeLessThanOrEqual(0.005 + 1e-9);
+      }),
+    );
+  });
+
+  it('lands on a whole number of hundredths', () => {
+    assert(
+      property(weight, (x) => {
+        const hundredths = snapKg(x) * 100;
+        expect(Math.abs(hundredths - Math.round(hundredths))).toBeLessThan(1e-6);
+      }),
+    );
+  });
 });

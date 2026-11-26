@@ -63,6 +63,16 @@ describe('planWave', () => {
     ]);
   });
 
+  it('snaps the cycle increment to two decimals', () => {
+    const tiny = makeSlot({ mode: 'wave', weeks: '3x5@0.1', increment: 0.2 });
+    expect(planWave(tiny, exercise, 1, none).sets[0]?.targetKg).toBe(0.3);
+  });
+
+  it('snaps a decimal slot offset to two decimals', () => {
+    const tiny = makeSlot({ mode: 'wave', weeks: '3x5@0.2', offsetKg: 0.1 });
+    expect(planWave(tiny, exercise, 0, none).sets[0]?.targetKg).toBe(0.3);
+  });
+
   it('leaves percentage segments without a weight', () => {
     const pctSlot = makeSlot({ mode: 'wave', weeks: '4x6@75%' });
     const { sets } = planWave(pctSlot, exercise, 0, none);

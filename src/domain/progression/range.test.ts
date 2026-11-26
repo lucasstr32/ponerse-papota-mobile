@@ -31,6 +31,11 @@ describe('planRange', () => {
     expect(sets.every((s) => s.type === 'work')).toBe(true);
   });
 
+  it('snaps the raised target to two decimals', () => {
+    const { sets } = plan([sessionWith('a', at(1), 0.1, [12, 12, 12])], { increment: 0.2 });
+    expect(sets[0]?.targetKg).toBe(0.3);
+  });
+
   it('uses the heaviest set when the weights vary within a session', () => {
     const session = makeSession({
       id: 'a',
