@@ -50,6 +50,12 @@ describe('planWave', () => {
     expect(info).toMatchObject({ deload: true, week: 3 });
   });
 
+  it('adds the cycle increment to the last line on a deload week after the first cycle', () => {
+    const { sets, info } = planWave(slot, exercise, 5, { deload: true });
+    expect(sets.map((s) => s.targetKg)).toEqual([92.5, 70, 70]);
+    expect(info).toMatchObject({ deload: true, cycle: 1, week: 3 });
+  });
+
   it('adds the slot offset to every segment', () => {
     const shifted = makeSlot({ ...slot, offsetKg: 2.5 });
     expect(planWave(shifted, exercise, 3, none).sets.map((s) => s.targetKg)).toEqual([
