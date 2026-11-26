@@ -1,6 +1,7 @@
-import { assert, boolean, array, property } from 'fast-check';
+import { assert, boolean, array, integer, property } from 'fast-check';
 
 import { makeEntry, makeExercise, makeSet, makeSlot } from '../builders.fixtures';
+import { formatDecimal, num } from '../num';
 import type { EntryRecord } from '../types';
 import { planLinear } from './linear';
 
@@ -111,6 +112,30 @@ describe('planLinear', () => {
         const twoFails = [...history, session(70, false), session(70, false)];
         expect(targetOf(twoFails)).toBeLessThanOrEqual(70);
       }),
+    );
+  });
+
+  it('counts loading exactly the computed target as achieved with decimal weights', () => {
+    assert(
+      property(
+        integer({ min: 0, max: 800 }),
+        integer({ min: 1, max: 40 }),
+        integer({ min: 1, max: 40 }),
+        (k, incTenths, quarter) => {
+          const start = quarter % 2 === 0 ? k / 10 : k / 4;
+          const decimalSlot = makeSlot({ ...slot, kg: start, increment: incTenths / 10 });
+          const first = planLinear(decimalSlot, exercise, []).sets[0]?.targetKg ?? 0;
+          const loaded = num(formatDecimal(first));
+          const second = planLinear(decimalSlot, exercise, [session(first, true, loaded)]);
+          const target = second.sets[0]?.targetKg ?? 0;
+          expect(second.info).toEqual({ mode: 'linear', fails: 0, lastOutcome: 'achieved' });
+          const third = planLinear(decimalSlot, exercise, [
+            session(first, true, loaded),
+            session(target, true, num(formatDecimal(target))),
+          ]);
+          expect(third.info).toEqual({ mode: 'linear', fails: 0, lastOutcome: 'achieved' });
+        },
+      ),
     );
   });
 });

@@ -3,6 +3,11 @@ function snap6(x: number): number {
   return Math.round(x * 1e6) / 1e6;
 }
 
+/** Rounds a computed weight to 2 decimals, absorbing floating point noise. */
+export function snapKg(x: number): number {
+  return Math.round(snap6(x * 100)) / 100;
+}
+
 /** Rounds to the nearest 2.5 (smallest plate pair), halves go up. */
 export function round25(x: number): number {
   return Math.round(snap6(x / 2.5)) * 2.5;

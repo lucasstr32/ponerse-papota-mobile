@@ -1,6 +1,6 @@
 import { assert, integer, double, property } from 'fast-check';
 
-import { epley, round25, roundHalf } from './math';
+import { epley, round25, roundHalf, snapKg } from './math';
 
 const weight = double({ min: 0, max: 500, noNaN: true });
 
@@ -63,5 +63,26 @@ describe('roundHalf', () => {
     expect(roundHalf(92.4)).toBe(92.5);
     expect(roundHalf(92.25)).toBe(92.5);
     expect(roundHalf(92.2)).toBe(92);
+  });
+});
+
+describe('snapKg', () => {
+  it('removes floating point noise at two decimals', () => {
+    expect(snapKg(0.1 + 0.2)).toBe(0.3);
+    expect(snapKg(60 + 0.3)).toBe(60.3);
+    expect(snapKg(62.5)).toBe(62.5);
+  });
+
+  it('rounds to two decimals with halves going up', () => {
+    expect(snapKg(1.005)).toBe(1.01);
+    expect(snapKg(1.234)).toBe(1.23);
+  });
+
+  it('is idempotent', () => {
+    assert(
+      property(weight, (x) => {
+        expect(snapKg(snapKg(x))).toBe(snapKg(x));
+      }),
+    );
   });
 });

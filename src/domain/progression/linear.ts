@@ -1,5 +1,5 @@
 import { workSets } from '../history';
-import { round25 } from '../math';
+import { round25, snapKg } from '../math';
 import { formatRepTarget, repMin } from '../reps';
 import type { EntryRecord, ExerciseInfo, LinearOutcome, SlotConfig } from '../types';
 import { uniformSets } from './range';
@@ -25,15 +25,18 @@ function step(state: LinearState, entry: EntryRecord, slot: SlotConfig, inc: num
   const tw = target ?? (loaded.length === 0 ? null : Math.max(...loaded));
   const tr = repMin(first?.targetReps ?? '') ?? slot.repMin;
   const achieved = sets.every(
-    (s) => s.reps !== null && s.reps >= tr && (target === null || s.kg === null || s.kg >= target),
+    (s) =>
+      s.reps !== null &&
+      s.reps >= tr &&
+      (target === null || s.kg === null || s.kg >= target - 1e-9),
   );
   if (achieved) {
-    return { kg: tw === null ? state.kg : tw + inc, fails: 0, lastOutcome: 'achieved' };
+    return { kg: tw === null ? state.kg : snapKg(tw + inc), fails: 0, lastOutcome: 'achieved' };
   }
   const base = tw ?? state.kg;
   if (state.fails + 1 >= 2) {
     return {
-      kg: base === null ? null : round25(base * 0.9),
+      kg: base === null ? null : snapKg(round25(base * 0.9)),
       fails: 0,
       lastOutcome: 'deload',
     };

@@ -1,3 +1,4 @@
+import { snapKg } from '../math';
 import type { ExerciseInfo, PlannedSet, SlotConfig } from '../types';
 import { parseWeeks } from '../weeks';
 import type { WaveSegment } from '../weeks';
@@ -37,7 +38,7 @@ export function planWave(
   const lines = weeks[week] ?? [];
   const inc = slot.increment ?? exercise.increment;
   const sets = lines.flatMap((segment) =>
-    segmentSets(segment, segment.pct ? null : segment.kg + cycle * inc + slot.offsetKg),
+    segmentSets(segment, segment.pct ? null : snapKg(segment.kg + cycle * inc + slot.offsetKg)),
   );
   return { sets, info };
 }

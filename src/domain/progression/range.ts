@@ -1,4 +1,5 @@
 import { loggedReps, workSets } from '../history';
+import { snapKg } from '../math';
 import { formatRepTarget } from '../reps';
 import type { EngineInfo, EntryRecord, ExerciseInfo, PlannedSet, SlotConfig } from '../types';
 
@@ -37,6 +38,6 @@ export function planRange(
   const allTop = logged.length >= slot.sets && logged.every((r) => r >= slot.repMax);
   const increment = slot.increment ?? exercise.increment;
   const loaded = lw !== null && (!exercise.bodyweight || lw > 0);
-  const target = allTop && increment > 0 && loaded ? lw + increment : (lw ?? slot.kg);
+  const target = allTop && increment > 0 && loaded ? snapKg(lw + increment) : (lw ?? slot.kg);
   return { sets: uniformSets(slot.sets, target, reps), info };
 }
