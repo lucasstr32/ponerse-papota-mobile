@@ -1,6 +1,7 @@
 import { assert, boolean, array, integer, property } from 'fast-check';
 
 import { makeEntry, makeExercise, makeSet, makeSlot } from '../builders.fixtures';
+import { round25 } from '../math';
 import { formatDecimal, num } from '../num';
 import type { EntryRecord } from '../types';
 import { planLinear } from './linear';
@@ -103,16 +104,49 @@ describe('planLinear', () => {
     expect(planLinear(custom, exercise, [session(60, true)]).sets[0]?.targetKg).toBe(65);
   });
 
-  it('adds one increment after an achieved session and never rises after two fails', () => {
+  it('follows the achieved, first fail and deload rules over any sequence', () => {
     assert(
-      property(array(boolean(), { maxLength: 6 }), boolean(), (previous, achieved) => {
-        const history = [...previous.map((a) => session(60, a)), session(70, achieved)];
-        const target = targetOf(history);
-        if (achieved) expect(target).toBe(72.5);
-        const twoFails = [...history, session(70, false), session(70, false)];
-        expect(targetOf(twoFails)).toBeLessThanOrEqual(70);
-      }),
+      property(
+        integer({ min: 8, max: 80 }),
+        array(boolean(), { minLength: 1, maxLength: 12 }),
+        (steps, outcomes) => {
+          const start = steps * 2.5;
+          const custom = makeSlot({ ...slot, kg: start });
+          const history: EntryRecord[] = [];
+          let tw = start;
+          let fails = 0;
+          for (const achieved of outcomes) {
+            history.push(session(tw, achieved));
+            const result = planLinear(custom, exercise, history);
+            if (achieved) {
+              tw += 2.5;
+              fails = 0;
+              expect(result.info).toEqual({ mode: 'linear', fails: 0, lastOutcome: 'achieved' });
+            } else if (fails === 1) {
+              tw = round25(tw * 0.9);
+              fails = 0;
+              expect(result.info).toEqual({ mode: 'linear', fails: 0, lastOutcome: 'deload' });
+            } else {
+              fails = 1;
+              expect(result.info).toEqual({ mode: 'linear', fails: 1, lastOutcome: 'firstFail' });
+            }
+            expect(result.sets[0]?.targetKg).toBe(tw);
+          }
+        },
+      ),
     );
+  });
+
+  it('ignores warm-up sets of the previous entry', () => {
+    const entry = makeEntry({
+      sets: [
+        makeSet({ type: 'warmup', targetKg: 30, targetReps: '5', kg: 30, reps: 1 }),
+        ...[5, 5, 5].map((r) => makeSet({ targetKg: 60, targetReps: '5', kg: 60, reps: r })),
+      ],
+    });
+    const result = planLinear(slot, exercise, [entry]);
+    expect(result.sets[0]?.targetKg).toBe(62.5);
+    expect(result.info).toEqual({ mode: 'linear', fails: 0, lastOutcome: 'achieved' });
   });
 
   it('counts loading exactly the computed target as achieved with decimal weights', () => {
