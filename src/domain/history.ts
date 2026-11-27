@@ -19,6 +19,34 @@ function time(iso: string): number {
   return Date.parse(iso);
 }
 
+export interface ExerciseSet {
+  sessionId: string;
+  createdAt: string;
+  set: SetRecord;
+}
+
+/**
+ * Work and control sets with reps of an exercise across sessions, oldest first (then by
+ * entry and set order). Counts every entry of the exercise, including ones that replace a
+ * slot. Skips the excluded session.
+ */
+export function exerciseSets(
+  sessions: readonly SessionRecord[],
+  exerciseId: string,
+  excludeSessionId: string | null = null,
+): ExerciseSet[] {
+  const sorted = [...sessions].sort((a, b) => time(a.createdAt) - time(b.createdAt));
+  return sorted.flatMap((session) =>
+    session.id === excludeSessionId
+      ? []
+      : session.entries
+          .filter((entry) => entry.exerciseId === exerciseId)
+          .flatMap((entry) => workSets(entry))
+          .filter((set) => set.reps !== null && set.reps > 0)
+          .map((set) => ({ sessionId: session.id, createdAt: session.createdAt, set })),
+  );
+}
+
 export interface SlotHistoryItem {
   sessionId: string;
   createdAt: string;

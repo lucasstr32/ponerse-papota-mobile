@@ -87,6 +87,16 @@ export function makeSession(overrides: Partial<SessionRecord> = {}): SessionReco
   };
 }
 
+/** A session holding a single entry of the given exercise with the given sets. */
+export function sessionOfSets(
+  id: string,
+  createdAt: string,
+  exerciseId: string,
+  sets: SetRecord[],
+): SessionRecord {
+  return makeSession({ id, createdAt, entries: [makeEntry({ exerciseId, sets })] });
+}
+
 /** A session holding a single entry for slot1 with equal-weight work sets. */
 export function sessionWith(
   id: string,

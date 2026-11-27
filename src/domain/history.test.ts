@@ -1,7 +1,15 @@
 import { assert, array, integer, property } from 'fast-check';
 
-import { makeEntry, makeSession, makeSet, makeSlot, sessionWith } from './builders.fixtures';
-import { hasWork, loggedReps, slotHistory, slotTimeline, workSets } from './history';
+import {
+  makeEntry,
+  makeSession,
+  makeSet,
+  makeSlot,
+  sessionOfSets,
+  sessionWith,
+} from './builders.fixtures';
+import type { SetRecord } from './types';
+import { exerciseSets, hasWork, loggedReps, slotHistory, slotTimeline, workSets } from './history';
 
 describe('workSets and hasWork', () => {
   it('keeps work and control sets and drops warm-ups', () => {
@@ -185,6 +193,83 @@ describe('slotTimeline', () => {
           }
         },
       ),
+    );
+  });
+});
+
+describe('exerciseSets', () => {
+  const squat = (reps: number, extra: Partial<SetRecord> = {}): SetRecord =>
+    makeSet({ kg: 100, reps, ...extra });
+
+  it('keeps only the sets of the exercise, including entries that replace a slot', () => {
+    const session = makeSession({
+      id: 's1',
+      createdAt: '2026-01-01T10:00:00.000Z',
+      entries: [
+        makeEntry({ exerciseId: 'squat', sets: [squat(5)] }),
+        makeEntry({ exerciseId: 'bench', sets: [squat(6)] }),
+        makeEntry({
+          slotUid: null,
+          replacesSlotUid: 'slot2',
+          exerciseId: 'squat',
+          sets: [squat(7)],
+        }),
+      ],
+    });
+    expect(exerciseSets([session], 'squat').map((e) => e.set.reps)).toEqual([5, 7]);
+  });
+
+  it('drops warm-ups and sets without reps or with zero reps, and keeps control sets', () => {
+    const session = sessionOfSets('s1', '2026-01-01T10:00:00.000Z', 'squat', [
+      squat(5, { type: 'warmup' }),
+      squat(0),
+      makeSet({ kg: 100, reps: null }),
+      squat(3, { type: 'control' }),
+      squat(4),
+    ]);
+    expect(exerciseSets([session], 'squat').map((e) => e.set.reps)).toEqual([3, 4]);
+  });
+
+  it('skips the excluded session', () => {
+    const a = sessionOfSets('a', '2026-01-01T10:00:00.000Z', 'squat', [squat(5)]);
+    const b = sessionOfSets('b', '2026-01-02T10:00:00.000Z', 'squat', [squat(6)]);
+    expect(exerciseSets([a, b], 'squat', 'a').map((e) => e.sessionId)).toEqual(['b']);
+    expect(exerciseSets([a, b], 'squat', null)).toHaveLength(2);
+  });
+
+  it('orders by creation time, then by entries and sets', () => {
+    const late = sessionOfSets('late', '2026-01-03T10:00:00.000Z', 'squat', [squat(1)]);
+    const early = makeSession({
+      id: 'early',
+      createdAt: '2026-01-01T10:00:00.000Z',
+      entries: [
+        makeEntry({ exerciseId: 'squat', sets: [squat(2), squat(3)] }),
+        makeEntry({ exerciseId: 'squat', sets: [squat(4)] }),
+      ],
+    });
+    expect(exerciseSets([late, early], 'squat').map((e) => e.set.reps)).toEqual([2, 3, 4, 1]);
+  });
+
+  it('carries the session id and creation time', () => {
+    const s = sessionOfSets('s1', '2026-01-01T10:00:00.000Z', 'squat', [squat(5)]);
+    const [first] = exerciseSets([s], 'squat');
+    expect(first?.sessionId).toBe('s1');
+    expect(first?.createdAt).toBe('2026-01-01T10:00:00.000Z');
+    expect(first?.set.reps).toBe(5);
+  });
+
+  it('does not depend on the order of the input sessions', () => {
+    assert(
+      property(array(integer({ min: 1, max: 12 }), { maxLength: 8 }), (reps) => {
+        const sessions = reps.map((r, i) =>
+          sessionOfSets(`s${i}`, new Date(Date.UTC(2026, 0, 1 + i)).toISOString(), 'squat', [
+            squat(r),
+          ]),
+        );
+        expect(exerciseSets([...sessions].reverse(), 'squat')).toEqual(
+          exerciseSets(sessions, 'squat'),
+        );
+      }),
     );
   });
 });
