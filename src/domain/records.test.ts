@@ -1,7 +1,7 @@
 import { assert, array, constantFrom, integer, oneof, property, tuple, constant } from 'fast-check';
 
-import { makeEntry, makeSession, makeSet, sessionOfSets } from './builders.fixtures';
-import { controlOneRm, oneRmOf, personalRecords } from './records';
+import { makeEntry, makeExercise, makeSession, makeSet, sessionOfSets } from './builders.fixtures';
+import { controlOneRm, isPersonalRecord, oneRmOf, personalRecords } from './records';
 import type { SessionRecord, SetRecord, SetType } from './types';
 
 describe('oneRmOf', () => {
@@ -212,6 +212,122 @@ describe('personalRecords properties', () => {
         expect(personalRecords(sessions, 'ex1', excluded?.id ?? null)).toEqual(
           personalRecords(kept, 'ex1'),
         );
+      }),
+    );
+  });
+});
+
+describe('isPersonalRecord', () => {
+  const weighted = makeExercise({ id: 'ex1' });
+  const history = [sessionOfSets('old', day(1), 'ex1', [makeSet({ kg: 100, reps: 1 })])];
+  const records = personalRecords(history, 'ex1');
+
+  it('flags a work set that beats the best 1RM and not an approach set', () => {
+    expect(isPersonalRecord(makeSet({ kg: 87.5, reps: 7 }), records, weighted)).toBe(true);
+    const approach = makeSet({ type: 'warmup', kg: 90, reps: 5 });
+    expect(isPersonalRecord(approach, records, weighted)).toBe(false);
+    expect(isPersonalRecord({ ...approach, type: 'work' }, records, weighted)).toBe(true);
+  });
+
+  it('needs more than a cent over the best 1RM', () => {
+    expect(isPersonalRecord(makeSet({ kg: 100.01, reps: 1 }), records, weighted)).toBe(false);
+    expect(isPersonalRecord(makeSet({ kg: 100.02, reps: 1 }), records, weighted)).toBe(true);
+  });
+
+  it('is never a record without previous records', () => {
+    const none = personalRecords([], 'ex1');
+    expect(isPersonalRecord(makeSet({ kg: 100, reps: 5 }), none, weighted)).toBe(false);
+    const bodyweight = makeExercise({ bodyweight: true });
+    expect(isPersonalRecord(makeSet({ kg: null, reps: 10 }), none, bodyweight)).toBe(false);
+  });
+
+  it('compares reps for bodyweight work without added load', () => {
+    const bodyweight = makeExercise({ bodyweight: true });
+    const past = personalRecords(
+      [sessionOfSets('old', day(1), 'ex1', [makeSet({ kg: null, reps: 10 })])],
+      'ex1',
+    );
+    expect(isPersonalRecord(makeSet({ kg: null, reps: 11 }), past, bodyweight)).toBe(true);
+    expect(isPersonalRecord(makeSet({ kg: 0, reps: 11 }), past, bodyweight)).toBe(true);
+    expect(isPersonalRecord(makeSet({ kg: null, reps: 10 }), past, bodyweight)).toBe(false);
+  });
+
+  it('compares the 1RM for bodyweight work with added load', () => {
+    const bodyweight = makeExercise({ bodyweight: true });
+    const past = personalRecords(
+      [sessionOfSets('old', day(1), 'ex1', [makeSet({ kg: 10, reps: 5 })])],
+      'ex1',
+    );
+    expect(isPersonalRecord(makeSet({ kg: 10, reps: 6 }), past, bodyweight)).toBe(true);
+    expect(isPersonalRecord(makeSet({ kg: 5, reps: 12 }), past, bodyweight)).toBe(false);
+  });
+
+  it.each(['seconds', 'meters'] as const)('compares reps when the unit is %s', (unit) => {
+    const timed = makeExercise({ unit });
+    const past = personalRecords(
+      [sessionOfSets('old', day(1), 'ex1', [makeSet({ kg: 50, reps: 30 })])],
+      'ex1',
+    );
+    expect(isPersonalRecord(makeSet({ kg: 10, reps: 31 }), past, timed)).toBe(true);
+    expect(isPersonalRecord(makeSet({ kg: 100, reps: 30 }), past, timed)).toBe(false);
+  });
+
+  it('gives false for sets without a load or outside 1 to 12 reps in a weighted exercise', () => {
+    expect(isPersonalRecord(makeSet({ kg: null, reps: 5 }), records, weighted)).toBe(false);
+    expect(isPersonalRecord(makeSet({ kg: 200, reps: 13 }), records, weighted)).toBe(false);
+    expect(isPersonalRecord(makeSet({ kg: 200, reps: 0 }), records, weighted)).toBe(false);
+    expect(isPersonalRecord(makeSet({ kg: 200, reps: null }), records, weighted)).toBe(false);
+  });
+
+  it('flags every set of the current session that beats the earlier records', () => {
+    expect(isPersonalRecord(makeSet({ kg: 105, reps: 1 }), records, weighted)).toBe(true);
+    expect(isPersonalRecord(makeSet({ kg: 110, reps: 1 }), records, weighted)).toBe(true);
+  });
+
+  const historyArb = array(tuple(integer({ min: 1, max: 200 }), integer({ min: 1, max: 12 })), {
+    minLength: 1,
+    maxLength: 6,
+  }).map((sets) =>
+    sessionOfSets(
+      'old',
+      day(1),
+      'ex1',
+      sets.map(([kg, reps]) => makeSet({ kg, reps })),
+    ),
+  );
+  const newSetArb = tuple(integer({ min: 1, max: 250 }), integer({ min: 1, max: 12 })).map(
+    ([kg, reps]) => makeSet({ kg, reps }),
+  );
+
+  it('moves the best 1RM to the new set when it is a record', () => {
+    assert(
+      property(historyArb, newSetArb, (past, set) => {
+        const before = personalRecords([past], 'ex1');
+        if (!isPersonalRecord(set, before, weighted)) return;
+        const after = personalRecords([past, sessionOfSets('new', day(2), 'ex1', [set])], 'ex1');
+        expect(after.oneRm?.oneRm).toBe(oneRmOf(set));
+      }),
+    );
+  });
+
+  it('raises the best 1RM by at most a cent when it is not a record', () => {
+    assert(
+      property(historyArb, newSetArb, (past, set) => {
+        const before = personalRecords([past], 'ex1');
+        if (isPersonalRecord(set, before, weighted)) return;
+        const after = personalRecords([past, sessionOfSets('new', day(2), 'ex1', [set])], 'ex1');
+        expect((after.oneRm?.oneRm ?? 0) - (before.oneRm?.oneRm ?? 0)).toBeLessThanOrEqual(
+          0.01 + 1e-9,
+        );
+      }),
+    );
+  });
+
+  it('never flags an approach set', () => {
+    assert(
+      property(historyArb, newSetArb, (past, set) => {
+        const before = personalRecords([past], 'ex1');
+        expect(isPersonalRecord({ ...set, type: 'warmup' }, before, weighted)).toBe(false);
       }),
     );
   });
