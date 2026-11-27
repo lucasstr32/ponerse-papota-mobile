@@ -63,6 +63,40 @@ export interface PlannedSet {
   targetReps: string;
 }
 
+export type AdjustmentRule = 'up' | 'hold' | 'down';
+
+/** A load adjustment recorded for one slot in one session. */
+export interface AdjustmentLog {
+  slotUid: string;
+  sessionId: string;
+  rule: AdjustmentRule;
+  offsetBefore: number;
+  offsetAfter: number;
+  accepted: boolean;
+}
+
+export type AdjustmentReason = 'extraReserve' | 'rirZero' | 'missedReps' | 'missedTwice';
+
+interface ProposalOffsets {
+  offsetBefore: number;
+  offsetAfter: number;
+}
+
+/**
+ * A load adjustment on offer. The reason depends on the rule; a hold leaves the offset
+ * unchanged (`offsetAfter === offsetBefore`).
+ */
+export type AdjustmentProposal =
+  | ({ rule: 'up'; reason: 'extraReserve' } & ProposalOffsets)
+  | ({ rule: 'hold'; reason: 'rirZero' | 'missedReps' } & ProposalOffsets)
+  | ({ rule: 'down'; reason: 'missedTwice' } & ProposalOffsets);
+
+/** The block week a session falls in: its reserve target and whether it is a deload. */
+export interface BlockWeek {
+  rir: string;
+  deload: boolean;
+}
+
 export type LinearOutcome = 'achieved' | 'firstFail' | 'deload';
 
 export type EngineInfo =

@@ -1,4 +1,23 @@
-import type { EntryRecord, ExerciseInfo, SessionRecord, SetRecord, SlotConfig } from './types';
+import type {
+  AdjustmentLog,
+  EntryRecord,
+  ExerciseInfo,
+  SessionRecord,
+  SetRecord,
+  SlotConfig,
+} from './types';
+
+export function makeAdjustment(overrides: Partial<AdjustmentLog> = {}): AdjustmentLog {
+  return {
+    slotUid: 'slot1',
+    sessionId: 's1',
+    rule: 'up',
+    offsetBefore: 0,
+    offsetAfter: 0,
+    accepted: true,
+    ...overrides,
+  };
+}
 
 export function makeExercise(overrides: Partial<ExerciseInfo> = {}): ExerciseInfo {
   return {
