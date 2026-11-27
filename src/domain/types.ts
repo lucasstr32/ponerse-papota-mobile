@@ -57,6 +57,13 @@ export interface SessionRecord {
   entries: EntryRecord[];
 }
 
+/** A strength target: lift `kg` for `reps` reps. */
+export interface StrengthGoal {
+  exerciseId: string;
+  kg: number;
+  reps: number;
+}
+
 export interface PlannedSet {
   type: SetType;
   targetKg: number | null;
