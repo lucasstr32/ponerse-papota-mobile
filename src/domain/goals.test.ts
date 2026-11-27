@@ -76,6 +76,21 @@ describe('goalProgress', () => {
     expect(result.achievedSessionId).toBeNull();
   });
 
+  it('does not date the achievement from a set without a load, even for a goal of 0 kg', () => {
+    const bodyweight: StrengthGoal = { exerciseId: 'ex1', kg: 0, reps: 3 };
+    const bare = sessionOfSets('bare', day(1), 'ex1', [makeSet({ kg: null, reps: 5 })]);
+    expect(goalProgress(bodyweight, [bare]).achievedSessionId).toBeNull();
+  });
+
+  it('dates the achievement from a set above the goal reps even if it gives no 1RM', () => {
+    const endurance: StrengthGoal = { exerciseId: 'ex1', kg: 50, reps: 12 };
+    const start = sessionOfSets('start', day(1), 'ex1', [makeSet({ kg: 40, reps: 1 })]);
+    const long = sessionOfSets('long', day(2), 'ex1', [makeSet({ kg: 50, reps: 13 })]);
+    const result = goalProgress(endurance, [start, long]);
+    expect(result.progress).toBe(1);
+    expect(result.achievedSessionId).toBe('long');
+  });
+
   it('counts a failed set that has the load and reps', () => {
     const failed = sessionOfSets('f', day(2), 'ex1', [makeSet({ kg: 84, reps: 3, failed: true })]);
     expect(goalProgress(goal, [first, failed]).achievedSessionId).toBe('f');

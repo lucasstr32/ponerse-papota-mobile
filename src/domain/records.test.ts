@@ -284,6 +284,32 @@ describe('isPersonalRecord', () => {
     expect(isPersonalRecord(makeSet({ kg: 110, reps: 1 }), records, weighted)).toBe(true);
   });
 
+  it('flags every set of the session in progress when its records are left out', () => {
+    const sessions = [
+      history[0] ?? makeSession(),
+      sessionOfSets('current', day(2), 'ex1', [
+        makeSet({ kg: 105, reps: 1 }),
+        makeSet({ kg: 110, reps: 1 }),
+      ]),
+    ];
+    const before = personalRecords(sessions, 'ex1', 'current');
+    expect(isPersonalRecord(makeSet({ kg: 105, reps: 1 }), before, weighted)).toBe(true);
+    expect(isPersonalRecord(makeSet({ kg: 110, reps: 1 }), before, weighted)).toBe(true);
+    // Without leaving the session out, the lighter set no longer beats the best one.
+    const all = personalRecords(sessions, 'ex1');
+    expect(isPersonalRecord(makeSet({ kg: 105, reps: 1 }), all, weighted)).toBe(false);
+  });
+
+  it('gives no 1RM record when the earlier sets are all above 12 reps', () => {
+    const light = personalRecords(
+      [sessionOfSets('old', day(1), 'ex1', [makeSet({ kg: 40, reps: 15 })])],
+      'ex1',
+    );
+    expect(light.oneRm).toBeNull();
+    expect(light.reps?.reps).toBe(15);
+    expect(isPersonalRecord(makeSet({ kg: 100, reps: 5 }), light, weighted)).toBe(false);
+  });
+
   const historyArb = array(tuple(integer({ min: 1, max: 200 }), integer({ min: 1, max: 12 })), {
     minLength: 1,
     maxLength: 6,
@@ -295,8 +321,9 @@ describe('isPersonalRecord', () => {
       sets.map(([kg, reps]) => makeSet({ kg, reps })),
     ),
   );
-  const newSetArb = tuple(integer({ min: 1, max: 250 }), integer({ min: 1, max: 12 })).map(
-    ([kg, reps]) => makeSet({ kg, reps }),
+  // Weights in hundredths so the margin of one cent is exercised around the best 1RM.
+  const newSetArb = tuple(integer({ min: 100, max: 25000 }), integer({ min: 1, max: 12 })).map(
+    ([hundredths, reps]) => makeSet({ kg: hundredths / 100, reps }),
   );
 
   it('moves the best 1RM to the new set when it is a record', () => {
