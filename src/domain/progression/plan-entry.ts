@@ -1,8 +1,16 @@
 import { acceptedRule, waveIndex } from '../adjustments';
 import { slotTimeline } from '../history';
+import type { SlotHistoryItem } from '../history';
 import { snapKg } from '../math';
 import { formatRepTarget } from '../reps';
-import type { AdjustmentLog, ExerciseInfo, PlannedSet, SessionRecord, SlotConfig } from '../types';
+import type {
+  AdjustmentLog,
+  EntryRecord,
+  ExerciseInfo,
+  PlannedSet,
+  SessionRecord,
+  SlotConfig,
+} from '../types';
 import { warmupSets } from '../warmup';
 import { planLinear } from './linear';
 import { planRange, uniformSets } from './range';
@@ -38,15 +46,10 @@ function acceptedBump(adjustments: readonly AdjustmentLog[], slotUid: string, id
   return log === undefined ? 0 : snapKg(log.offsetAfter - log.offsetBefore);
 }
 
-function planByMode({
-  slot,
-  exercise,
-  sessions,
-  current,
-  deload,
-  adjustments,
-}: PlanEntryInput): Plan {
-  const timeline = slotTimeline(sessions, slot, current);
+function planByMode(
+  { slot, exercise, deload, adjustments }: PlanEntryInput,
+  timeline: readonly SlotHistoryItem[],
+): Plan {
   const history = timeline.map((item) => item.entry);
   switch (slot.mode) {
     case 'range':
@@ -69,9 +72,28 @@ function planByMode({
 
 /** Target sets for one slot of a session: warm-ups first, then the mode's work sets. */
 export function planEntry(input: PlanEntryInput): Plan {
-  const plan = planByMode(input);
+  const plan = planByMode(input, slotTimeline(input.sessions, input.slot, input.current));
   const weights = plan.sets.flatMap((s) => (s.targetKg === null ? [] : [s.targetKg]));
   const top = weights.length === 0 ? null : Math.max(...weights);
   const warmups: PlannedSet[] = warmupSets(input.slot.warmup, top, input.exercise);
   return { sets: [...warmups, ...plan.sets], info: plan.info };
+}
+
+/**
+ * Target work sets for the session after the current one, if the current one ends with
+ * `entry`. The entry is always added to the slot history, even without work, so a wave
+ * moves on to the next week. The next session is planned as a regular one (no deload: its
+ * block week is not known here), without warm-ups. Adjustment proposals are not applied;
+ * accepted logs, including those of the current session, are.
+ */
+export function planAfter(
+  input: PlanEntryInput & { current: { id: string; createdAt: string } },
+  entry: EntryRecord,
+): Plan {
+  const { slot, sessions, current } = input;
+  const timeline: SlotHistoryItem[] = [
+    ...slotTimeline(sessions, slot, current),
+    { sessionId: current.id, createdAt: current.createdAt, entry },
+  ];
+  return planByMode({ ...input, deload: false }, timeline);
 }

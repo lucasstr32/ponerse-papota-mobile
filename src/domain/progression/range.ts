@@ -17,7 +17,8 @@ export function uniformSets(
   return Array.from({ length: count }, () => ({ type: 'work', targetKg, targetReps }));
 }
 
-function heaviest(entry: EntryRecord): number | null {
+/** Heaviest weight loaded in the work sets of an entry, or null when none has weight. */
+export function heaviest(entry: EntryRecord): number | null {
   const weights = workSets(entry).flatMap((s) => (s.kg === null ? [] : [s.kg]));
   return weights.length === 0 ? null : Math.max(...weights);
 }

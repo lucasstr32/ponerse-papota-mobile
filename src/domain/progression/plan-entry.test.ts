@@ -1,5 +1,16 @@
-import { makeAdjustment, makeExercise, makeSlot, sessionWith } from '../builders.fixtures';
-import { planEntry } from './plan-entry';
+import { assert, integer, property } from 'fast-check';
+
+import {
+  makeAdjustment,
+  makeEntry,
+  makeExercise,
+  makeSet,
+  makeSlot,
+  sessionWith,
+  workSetsOf,
+} from '../builders.fixtures';
+import { planAfter, planEntry } from './plan-entry';
+import { planWave } from './wave';
 
 const exercise = makeExercise({ increment: 2.5 });
 const sessions = [sessionWith('a', '2026-01-01T10:00:00.000Z', 40, [12, 12, 12])];
@@ -174,5 +185,128 @@ describe('planEntry', () => {
       });
       expect(next.sets[0]?.targetKg).toBe(62.5);
     });
+  });
+});
+
+describe('planAfter', () => {
+  const day = (i: number) => `2026-01-${String(i + 1).padStart(2, '0')}T10:00:00.000Z`;
+  const now = { id: 'now', createdAt: '2026-02-01T10:00:00.000Z' };
+  const after = { exercise, current: now, deload: false, adjustments: [] };
+
+  it('raises the double progression target when the live entry reaches the top', () => {
+    const slot = makeSlot({ mode: 'range' });
+    const history = [sessionWith('a', day(0), 40, [12, 12, 11])];
+    const entry = makeEntry({ sets: workSetsOf(40, [12, 12, 12]) });
+    const plan = planAfter({ ...after, slot, sessions: history }, entry);
+    expect(plan.sets.map((s) => s.targetKg)).toEqual([42.5, 42.5, 42.5]);
+  });
+
+  it('keeps the weight when the live entry misses the top', () => {
+    const slot = makeSlot({ mode: 'range' });
+    const entry = makeEntry({ sets: workSetsOf(40, [12, 12, 11]) });
+    expect(planAfter({ ...after, slot, sessions: [] }, entry).sets[0]?.targetKg).toBe(40);
+  });
+
+  it('follows the linear sequence of achieved, first fail and deload', () => {
+    const slot = makeSlot({ mode: 'linear', repMin: 5, repMax: 5, kg: 60 });
+    const sets = (kg: number, reps: number) =>
+      [reps, reps, reps].map(() => makeSet({ targetKg: kg, targetReps: '5', kg, reps }));
+    const first = makeEntry({ sets: sets(60, 5) });
+    const second = makeEntry({ sets: sets(62.5, 4) });
+    const third = makeEntry({ sets: sets(62.5, 4) });
+    const s0 = { ...sessionWith('s0', day(0), 60, [5]), entries: [first] };
+    const s1 = { ...sessionWith('s1', day(1), 62.5, [4]), entries: [second] };
+
+    const a = planAfter({ ...after, slot, sessions: [] }, first);
+    expect(a.info).toEqual({ mode: 'linear', fails: 0, lastOutcome: 'achieved' });
+    expect(a.sets[0]?.targetKg).toBe(62.5);
+
+    const b = planAfter({ ...after, slot, sessions: [s0] }, second);
+    expect(b.info).toEqual({ mode: 'linear', fails: 1, lastOutcome: 'firstFail' });
+    expect(b.sets[0]?.targetKg).toBe(62.5);
+
+    const c = planAfter({ ...after, slot, sessions: [s0, s1] }, third);
+    expect(c.info).toEqual({ mode: 'linear', fails: 0, lastOutcome: 'deload' });
+    expect(c.sets[0]?.targetKg).toBe(57.5);
+  });
+
+  it('adds an accepted raise of the current session to a linear slot', () => {
+    const slot = makeSlot({ mode: 'linear', repMin: 5, repMax: 5, kg: 60 });
+    const entry = makeEntry({
+      sets: [5, 5, 5].map((reps) => makeSet({ targetKg: 60, targetReps: '5', kg: 60, reps })),
+    });
+    const up = makeAdjustment({ sessionId: 'now', rule: 'up', offsetBefore: 0, offsetAfter: 2.5 });
+    const plan = planAfter({ ...after, slot, sessions: [], adjustments: [up] }, entry);
+    expect(plan.sets[0]?.targetKg).toBe(65);
+  });
+
+  describe('weekly wave', () => {
+    const slot = makeSlot({ mode: 'wave', weeks: '3x5@60\n3x5@65', increment: 5 });
+
+    it('advances one week even when the live entry is empty', () => {
+      const plan = planAfter({ ...after, slot, sessions: [] }, makeEntry());
+      expect(plan.info).toMatchObject({ mode: 'wave', week: 1, cycle: 0 });
+      expect(plan.sets.map((s) => s.targetKg)).toEqual([65, 65, 65]);
+    });
+
+    it('never plans a deload week next', () => {
+      const plan = planAfter({ ...after, slot, sessions: [], deload: true }, makeEntry());
+      expect(plan.info).toMatchObject({ week: 1, deload: false });
+    });
+
+    it('repeats the week after an accepted hold for the current session', () => {
+      const hold = makeAdjustment({ sessionId: 'now', rule: 'hold' });
+      const entry = makeEntry({ sets: workSetsOf(60, [5, 5, 5]) });
+      const plan = planAfter({ ...after, slot, sessions: [], adjustments: [hold] }, entry);
+      expect(plan.info).toMatchObject({ week: 0, cycle: 0 });
+    });
+
+    it('moves to the next cycle after the last week', () => {
+      const history = [sessionWith('a', day(0), 60, [5, 5, 5])];
+      const plan = planAfter({ ...after, slot, sessions: history }, makeEntry());
+      expect(plan.info).toMatchObject({ week: 0, cycle: 1 });
+      expect(plan.sets[0]?.targetKg).toBe(65);
+    });
+
+    it('falls back to free sets when the weeks are invalid', () => {
+      const bad = makeSlot({ mode: 'wave', weeks: 'nope', kg: 30 });
+      const plan = planAfter({ ...after, slot: bad, sessions: [] }, makeEntry());
+      expect(plan.info).toMatchObject({ mode: 'wave', invalidWeeks: true });
+      expect(plan.sets.every((s) => s.targetKg === 30)).toBe(true);
+    });
+  });
+
+  it('adds no warm-ups', () => {
+    const full = makeSlot({ mode: 'wave', weeks: '3x5@60\n3x5@65', warmup: 'full' });
+    const plan = planAfter({ ...after, slot: full, sessions: [] }, makeEntry());
+    expect(plan.sets.every((s) => s.type !== 'warmup')).toBe(true);
+    expect(plan.sets).toHaveLength(3);
+  });
+
+  it('leaves out the saved version of the current session', () => {
+    const slot = makeSlot({ mode: 'range' });
+    const saved = sessionWith('now', now.createdAt, 40, [12, 12, 12]);
+    const entry = makeEntry({ sets: workSetsOf(40, [12, 12, 11]) });
+    const plan = planAfter({ ...after, slot, sessions: [saved] }, entry);
+    expect(plan.sets[0]?.targetKg).toBe(40);
+  });
+
+  it('plans a free slot with the slot weight', () => {
+    const slot = makeSlot({ mode: 'free', kg: 30 });
+    expect(planAfter({ ...after, slot, sessions: [] }, makeEntry()).info).toEqual({ mode: 'free' });
+  });
+
+  it('matches the wave planned for the following session', () => {
+    assert(
+      property(integer({ min: 1, max: 4 }), integer({ min: 0, max: 8 }), (length, done) => {
+        const weeks = Array.from({ length }, (_, i) => `3x5@${60 + 5 * i}`).join('\n');
+        const slot = makeSlot({ mode: 'wave', weeks, increment: 2.5 });
+        const history = Array.from({ length: done }, (_, i) =>
+          sessionWith(`s${i}`, day(i), 60, [5, 5, 5]),
+        );
+        const plan = planAfter({ ...after, slot, sessions: history }, makeEntry());
+        expect(plan.info).toEqual(planWave(slot, exercise, done + 1, { deload: false }).info);
+      }),
+    );
   });
 });
