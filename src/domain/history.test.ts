@@ -1,5 +1,7 @@
+import { assert, array, integer, property } from 'fast-check';
+
 import { makeEntry, makeSession, makeSet, makeSlot, sessionWith } from './builders.fixtures';
-import { hasWork, loggedReps, slotHistory, workSets } from './history';
+import { hasWork, loggedReps, slotHistory, slotTimeline, workSets } from './history';
 
 describe('workSets and hasWork', () => {
   it('keeps work and control sets and drops warm-ups', () => {
@@ -103,5 +105,86 @@ describe('slotHistory', () => {
     const history = slotHistory([session], slot);
     expect(history).toHaveLength(1);
     expect(history[0]?.sets[0]?.kg).toBe(40);
+  });
+});
+
+describe('slotTimeline', () => {
+  const slot = makeSlot();
+
+  it('returns the session id and date next to each entry, oldest first', () => {
+    const sessions = [
+      sessionWith('c', '2026-01-03T10:00:00.000Z', 42.5, [10]),
+      sessionWith('a', '2026-01-01T10:00:00.000Z', 40, [10]),
+      sessionWith('b', '2026-01-02T10:00:00.000Z', 41, [11]),
+    ];
+    const timeline = slotTimeline(sessions, slot);
+    expect(timeline.map((i) => i.sessionId)).toEqual(['a', 'b', 'c']);
+    expect(timeline.map((i) => i.createdAt)).toEqual([
+      '2026-01-01T10:00:00.000Z',
+      '2026-01-02T10:00:00.000Z',
+      '2026-01-03T10:00:00.000Z',
+    ]);
+    expect(timeline.map((i) => i.entry.sets[0]?.kg)).toEqual([40, 41, 42.5]);
+  });
+
+  it('excludes the current session and later ones', () => {
+    const sessions = [
+      sessionWith('a', '2026-01-01T10:00:00.000Z', 40, [10]),
+      sessionWith('b', '2026-01-02T10:00:00.000Z', 41, [10]),
+      sessionWith('c', '2026-01-03T10:00:00.000Z', 42, [10]),
+    ];
+    const timeline = slotTimeline(sessions, slot, {
+      id: 'b',
+      createdAt: '2026-01-02T10:00:00.000Z',
+    });
+    expect(timeline.map((i) => i.sessionId)).toEqual(['a']);
+  });
+
+  it('excludes sessions at or before resetAt', () => {
+    const sessions = [
+      sessionWith('a', '2026-01-01T10:00:00.000Z', 40, [10]),
+      sessionWith('b', '2026-01-02T10:00:00.000Z', 41, [10]),
+      sessionWith('c', '2026-01-03T10:00:00.000Z', 42, [10]),
+    ];
+    const reset = makeSlot({ resetAt: '2026-01-02T10:00:00.000Z' });
+    expect(slotTimeline(sessions, reset).map((i) => i.sessionId)).toEqual(['c']);
+  });
+
+  it('ignores other slots, replaced entries and entries without work', () => {
+    const sessions = [
+      sessionWith('a', '2026-01-01T10:00:00.000Z', 40, [10], { slotUid: 'other' }),
+      sessionWith('b', '2026-01-02T10:00:00.000Z', 41, [10], { replacesSlotUid: 'slot1' }),
+      sessionWith('c', '2026-01-03T10:00:00.000Z', 43, [null]),
+    ];
+    expect(slotTimeline(sessions, slot)).toEqual([]);
+  });
+
+  it('keeps the same entries as slotHistory over any set of sessions', () => {
+    assert(
+      property(
+        array(integer({ min: 0, max: 20 }), { maxLength: 10 }),
+        integer({ min: 0, max: 20 }),
+        (days, resetDay) => {
+          const sessions = days.map((d, i) =>
+            sessionWith(
+              `s${i}`,
+              new Date(Date.UTC(2026, 0, 1 + d)).toISOString(),
+              40 + i,
+              d % 3 === 0 ? [null] : [10],
+              { slotUid: d % 5 === 0 ? 'other' : 'slot1' },
+            ),
+          );
+          const reset = makeSlot({
+            resetAt: new Date(Date.UTC(2026, 0, 1 + resetDay)).toISOString(),
+          });
+          const current = sessions[0];
+          for (const s of [slot, reset]) {
+            expect(slotHistory(sessions, s, current)).toEqual(
+              slotTimeline(sessions, s, current).map((i) => i.entry),
+            );
+          }
+        },
+      ),
+    );
   });
 });
