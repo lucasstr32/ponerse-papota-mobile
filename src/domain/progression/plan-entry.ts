@@ -1,6 +1,8 @@
-import { slotHistory } from '../history';
+import { acceptedRule, waveIndex } from '../adjustments';
+import { slotTimeline } from '../history';
+import { snapKg } from '../math';
 import { formatRepTarget } from '../reps';
-import type { ExerciseInfo, PlannedSet, SessionRecord, SlotConfig } from '../types';
+import type { AdjustmentLog, ExerciseInfo, PlannedSet, SessionRecord, SlotConfig } from '../types';
 import { warmupSets } from '../warmup';
 import { planLinear } from './linear';
 import { planRange, uniformSets } from './range';
@@ -13,6 +15,7 @@ export interface PlanEntryInput {
   sessions: readonly SessionRecord[];
   current?: { id: string; createdAt: string };
   deload: boolean;
+  adjustments: readonly AdjustmentLog[];
 }
 
 function planFree(slot: SlotConfig): Plan {
@@ -22,15 +25,39 @@ function planFree(slot: SlotConfig): Plan {
   };
 }
 
-function planByMode({ slot, exercise, sessions, current, deload }: PlanEntryInput): Plan {
-  const history = slotHistory(sessions, slot, current);
+/**
+ * Raise an accepted `up` log adds to the weight the session leaves, 0 without one.
+ * `acceptedRule` decides first, so a hold or down accepted in the same session cancels the
+ * raise; only then is the `up` log itself looked up for its offsets.
+ */
+function acceptedBump(adjustments: readonly AdjustmentLog[], slotUid: string, id: string): number {
+  if (acceptedRule(adjustments, slotUid, id) !== 'up') return 0;
+  const log = adjustments.find(
+    (a) => a.accepted && a.rule === 'up' && a.slotUid === slotUid && a.sessionId === id,
+  );
+  return log === undefined ? 0 : snapKg(log.offsetAfter - log.offsetBefore);
+}
+
+function planByMode({
+  slot,
+  exercise,
+  sessions,
+  current,
+  deload,
+  adjustments,
+}: PlanEntryInput): Plan {
+  const timeline = slotTimeline(sessions, slot, current);
+  const history = timeline.map((item) => item.entry);
   switch (slot.mode) {
     case 'range':
       return planRange(slot, exercise, history);
-    case 'linear':
-      return planLinear(slot, exercise, history);
+    case 'linear': {
+      const bumps = timeline.map((item) => acceptedBump(adjustments, slot.uid, item.sessionId));
+      return planLinear(slot, exercise, history, bumps);
+    }
     case 'wave': {
-      const wave = planWave(slot, exercise, history.length, { deload });
+      const n = waveIndex(slot.uid, timeline, adjustments);
+      const wave = planWave(slot, exercise, n, { deload });
       return wave.info.mode === 'wave' && wave.info.invalidWeeks
         ? { sets: planFree(slot).sets, info: wave.info }
         : wave;
