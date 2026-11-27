@@ -27,15 +27,18 @@ export interface ExerciseSet {
 
 /**
  * Work and control sets with reps of an exercise across sessions, oldest first (then by
- * entry and set order). Counts every entry of the exercise, including ones that replace a
- * slot. Skips the excluded session.
+ * entry and set order). Sessions created at the same time are ordered by id. Counts every
+ * entry of the exercise, including ones that replace a slot. Skips the excluded session.
+ * Precondition: every `createdAt` is a valid date (the data layer validates it).
  */
 export function exerciseSets(
   sessions: readonly SessionRecord[],
   exerciseId: string,
   excludeSessionId: string | null = null,
 ): ExerciseSet[] {
-  const sorted = [...sessions].sort((a, b) => time(a.createdAt) - time(b.createdAt));
+  const sorted = [...sessions].sort(
+    (a, b) => time(a.createdAt) - time(b.createdAt) || (a.id < b.id ? -1 : 1),
+  );
   return sorted.flatMap((session) =>
     session.id === excludeSessionId
       ? []

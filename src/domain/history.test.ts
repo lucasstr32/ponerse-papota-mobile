@@ -250,6 +250,20 @@ describe('exerciseSets', () => {
     expect(exerciseSets([late, early], 'squat').map((e) => e.set.reps)).toEqual([2, 3, 4, 1]);
   });
 
+  it('breaks a creation time tie by session id, whatever the input order', () => {
+    const at = '2026-01-01T10:00:00.000Z';
+    const a = sessionOfSets('a', at, 'squat', [squat(1)]);
+    const b = sessionOfSets('b', at, 'squat', [squat(2)]);
+    const c = sessionOfSets('c', at, 'squat', [squat(3)]);
+    for (const input of [
+      [a, b, c],
+      [c, b, a],
+      [b, c, a],
+    ]) {
+      expect(exerciseSets(input, 'squat').map((e) => e.sessionId)).toEqual(['a', 'b', 'c']);
+    }
+  });
+
   it('carries the session id and creation time', () => {
     const s = sessionOfSets('s1', '2026-01-01T10:00:00.000Z', 'squat', [squat(5)]);
     const [first] = exerciseSets([s], 'squat');
