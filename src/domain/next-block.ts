@@ -35,14 +35,21 @@ export function nextReference(
   return { next: record.oneRm * RECORD_FACTOR, source: 'record', sessionId: record.sessionId };
 }
 
-/** Rescales the fixed weights of the weeks from one reference max to another. */
+/**
+ * Rescales the fixed weights of the weeks from one reference max to another. Percentages
+ * stay as they are. When the previous reference is not a positive finite number there is
+ * nothing to scale from, so the weeks come back unchanged.
+ */
 export function scaleWeeks(
   weeks: readonly WaveWeek[],
   previousRef: number,
   nextRef: number,
 ): WaveWeek[] {
+  const scalable = previousRef > 0 && Number.isFinite(previousRef);
   return weeks.map((week) =>
-    week.map((s) => (s.pct ? { ...s } : { ...s, kg: round25((s.kg / previousRef) * nextRef) })),
+    week.map((s) =>
+      s.pct || !scalable ? { ...s } : { ...s, kg: round25((s.kg / previousRef) * nextRef) },
+    ),
   );
 }
 
@@ -69,8 +76,9 @@ export interface NextBlockSlot {
 }
 
 /**
- * Proposal for the next block. Only wave slots with a reference, valid weeks and a new
- * reference change; every other slot keeps its weeks and offset and is left out.
+ * Proposal for the next block. Only wave slots with a positive reference, valid weeks and a
+ * new reference change; every other slot keeps its weeks and offset and is left out.
+ * Exercises whose previous reference is not positive get no reference either.
  */
 export function planNextBlock(input: NextBlockInput): {
   references: NextReference[];
@@ -79,13 +87,13 @@ export function planNextBlock(input: NextBlockInput): {
   const references: NextReference[] = [];
   for (const [exerciseId, previous] of Object.entries(input.refOneRm)) {
     const ref = nextReference(input.sessions, exerciseId);
-    if (ref !== null) references.push({ exerciseId, previous, ...ref });
+    if (ref !== null && previous > 0) references.push({ exerciseId, previous, ...ref });
   }
   const slots: NextBlockSlot[] = [];
   for (const slot of input.slots) {
     if (slot.mode !== 'wave') continue;
     const reference = references.find((r) => r.exerciseId === slot.exerciseId);
-    if (reference === undefined || !(reference.previous > 0)) continue;
+    if (reference === undefined) continue;
     const weeks = parseWeeks(slot.weeks);
     if (weeks.length === 0) continue;
     slots.push({

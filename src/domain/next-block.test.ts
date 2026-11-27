@@ -131,6 +131,29 @@ describe('planNextBlock', () => {
     expect(plan.slots).toEqual([]);
   });
 
+  it('leaves out an exercise whose previous reference is not positive', () => {
+    const zeroed = sessionOfSets('c3', day(12), 'zeroed', [
+      makeSet({ type: 'control', kg: 80, reps: 5 }),
+    ]);
+    const plan = planNextBlock({
+      slots: [makeSlot({ uid: 'zero', mode: 'wave', exerciseId: 'zeroed', weeks: WAVE })],
+      refOneRm: { zeroed: 0, squat: 99 },
+      sessions: [control, zeroed],
+    });
+    expect(plan.slots).toEqual([]);
+    expect(plan.references.map((r) => r.exerciseId)).toEqual(['squat']);
+  });
+
+  it('proposes weights from the record when the block has no control', () => {
+    const plan = planNextBlock({
+      slots: [waveSlot],
+      refOneRm: { squat: 99 },
+      sessions: [sessionOfSets('r1', day(5), 'squat', [makeSet({ kg: 100, reps: 1 })])],
+    });
+    expect(plan.references[0]?.source).toBe('record');
+    expect(plan.slots[0]?.weeks.split('\n')[0]).toBe('4x6@72.5');
+  });
+
   it('keeps percentages unchanged', () => {
     const plan = planNextBlock({
       slots: [makeSlot({ uid: 'p', exerciseId: 'squat', mode: 'wave', weeks: '4x6@75%' })],
@@ -181,6 +204,11 @@ describe('scaleWeeks', () => {
         );
       }),
     );
+  });
+
+  it.each([0, -5, NaN, Infinity])('returns the weeks unchanged when the previous is %p', (prev) => {
+    const weeks = parseWeeks(WAVE);
+    expect(scaleWeeks(weeks, prev, 110)).toEqual(weeks);
   });
 
   it('leaves percentages untouched', () => {
