@@ -1,54 +1,43 @@
 # Gym Tracker
 
-Offline Android app to plan strength routines, log every set and measure progress. Built with Expo
-(React Native) and TypeScript.
+An offline Android app that works out how much weight to load next, from the sets you have already logged.
 
-> Early stage: the repository currently contains the project setup and an empty home screen.
+## Problem
 
-## Requirements
+Anyone training with block-based routines has to decide, session after session, how much weight to put on each exercise. It usually ends up in a spreadsheet: manual, easy to get wrong, and disconnected from the training log.
 
-- Node 22.22.1 or later in the 22 line (see `.nvmrc`)
-- npm 10.9.11 or later in the 10 line
+## Solution
 
-## Getting started
+Gym Tracker plans routines, records every set and computes the next load from your history. It runs entirely on the phone: no account, no server and no network access.
 
-```bash
-npm ci --ignore-scripts
-npm run dev
-```
+## Highlights
 
-`npm run dev` needs a development build installed on an Android device (API 26 or later).
+- **Four progression modes:** `range` (double progression), `linear`, `wave` (weekly cycles) and `free`.
+- **Offline by design:** the `INTERNET` permission is blocked in the preview and production builds. Only the development build keeps it, to reach Metro.
+- **Data stays on the device:** local SQLite through `expo-sqlite` and Drizzle, with Android cloud auto backup turned off (`allowBackup: false`).
+- **Pure domain layer:** `src/domain` is plain TypeScript, and ESLint rejects any import of React, Expo, storage libraries or other app layers.
+- **Tested domain:** Jest enforces a 90% coverage threshold on `src/domain`, with property-based tests written with fast-check.
+- **Side-by-side variants:** development, preview and production have their own application IDs, so all three can be installed on one phone.
 
-## Scripts
+## Stack
 
-| Script                  | Purpose                                |
-| ----------------------- | -------------------------------------- |
-| `npm run dev`           | Start Metro for a development build    |
-| `npm run build`         | Export the Android bundle              |
-| `npm test`              | Run the tests                          |
-| `npm run test:coverage` | Run the tests with coverage            |
-| `npm run check`         | Typecheck, lint, format check, tests   |
-| `npm run format`        | Format the source files                |
-| `npm run doctor`        | Check the project against the Expo SDK |
+Expo SDK 58, React Native 0.88, React 19.3, TypeScript, Expo Router, expo-sqlite, Drizzle, Zustand, zod, Jest and React Native Testing Library.
 
-## Structure
+## Screenshots
 
-- `app/`: Expo Router routes only
-- `src/domain/`: pure TypeScript, with no React, Expo or storage imports
-- `src/data/`: local database
-- `src/ui/`: screens and components
-- `src/i18n/`: user-facing texts
+_Screenshots will be added once the first screens are built._
 
-## Variants
+## Run it
 
-`APP_VARIANT` selects `development`, `preview` or `production` (default). Each one has its own
-application ID, so they install side by side. Only `development` keeps the `INTERNET` permission,
-to reach Metro.
+Requirements: Node 22.22.1 or later in the 22 line, npm 10.9.11 or later in the 10 line, and an Android device or emulator with API 26 or later.
 
-## Pre-commit checks
+1. Install the dependencies: `npm ci --ignore-scripts`
+2. Run typecheck, lint, format check and tests: `npm run check`
+3. Install a development build on the device.
+4. Start Metro: `npm run dev`
 
-`scripts/pre-commit.sh` runs gitleaks and `npm run check`. To enable it locally:
+## Status and next steps
 
-```bash
-ln -s ../../scripts/pre-commit.sh .git/hooks/pre-commit
-```
+Early stage. The domain logic (rounding, set history, warm-ups and the progression engines) is implemented and tested. The app itself has an empty home screen, and the database opens without tables yet.
+
+Next: the database schema and migrations, the screens to build routines and log sessions, and import and editing of data. The interface is in Spanish (es-AR) and weights are in kilograms.
