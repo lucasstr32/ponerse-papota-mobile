@@ -120,7 +120,6 @@ describe('targetMessage double progression', () => {
 
     it('also suggests it when the loaded weight is zero', () => {
       const entry = entryOf(0, [10, 10, 10, 10]);
-      expect(targetMessage(input({ ...base, entry })).mode).toBe('range');
       expect(targetMessage(input({ ...base, entry }))).toEqual({
         mode: 'range',
         kind: 'addDifficulty',
@@ -147,7 +146,6 @@ describe('targetMessage double progression', () => {
         kind: 'quality',
       });
       const entry = entryOf(40, [8, 8, 8]);
-      expect(targetMessage(input({ slot: fixed, entry })).mode).toBe('range');
       expect(targetMessage(input({ slot: fixed, entry }))).toEqual({
         mode: 'range',
         kind: 'quality',
@@ -408,6 +406,27 @@ describe('targetMessage linear', () => {
       }),
     );
   });
+
+  it('follows an outcome model that does not use the planner', () => {
+    const outcomeOf = (past: number[][], reps: number[]) => {
+      const ok = (r: number[]) => r.every((x) => x >= 5);
+      const fails = past.reduce((f, r) => (ok(r) ? 0 : f + 1 >= 2 ? 0 : f + 1), 0);
+      return ok(reps) ? 'achieved' : fails + 1 >= 2 ? 'deload' : 'firstFail';
+    };
+    const kgOf = { achieved: 62.5, firstFail: 60, deload: 55 } as const;
+    const history = array(array(nat({ max: 7 }), { minLength: 1, maxLength: 4 }), { maxLength: 4 });
+    assert(
+      property(history, array(nat({ max: 7 }), { minLength: 1, maxLength: 4 }), (past, reps) => {
+        const sessions = past.map((r, i) => ({
+          ...sessionWith(`s${i}`, day(i), 60, [5]),
+          entries: [makeEntry({ sets: plannedSets(60, r) })],
+        }));
+        const kind = outcomeOf(past, reps);
+        const message = withEntry(makeEntry({ sets: plannedSets(60, reps) }), { sessions });
+        expect(message).toEqual({ mode: 'linear', kind, kg: kgOf[kind] });
+      }),
+    );
+  });
 });
 
 describe('targetMessage weekly wave', () => {
@@ -467,6 +486,10 @@ describe('targetMessage weekly wave', () => {
       });
       expect(wave({ entry })).toMatchObject({
         status: { kind: 'controlDone', kg: 87.5, reps: 7 },
+      });
+      const reversed = makeEntry({ sets: [...entry.sets].reverse() });
+      expect(wave({ entry: reversed })).toMatchObject({
+        status: { kind: 'controlDone', kg: 80, reps: 5 },
       });
     });
 
@@ -561,6 +584,15 @@ describe('targetMessage weekly wave', () => {
     const message = targetMessage(input({ slot, deload: true }));
     expect(message).toMatchObject({
       week: 1,
+      next: { cycle: 0, week: 1, segments: [{ sets: 3, reps: '5', kg: 65 }] },
+    });
+  });
+
+  it('plans the regular week that follows a deload in the middle of the cycle', () => {
+    const slot = makeSlot({ mode: 'wave', weeks: '3x5@60\n3x5@65\n3x5@50', increment: 5 });
+    const message = targetMessage(input({ slot, deload: true }));
+    expect(message).toMatchObject({
+      week: 2,
       next: { cycle: 0, week: 1, segments: [{ sets: 3, reps: '5', kg: 65 }] },
     });
   });

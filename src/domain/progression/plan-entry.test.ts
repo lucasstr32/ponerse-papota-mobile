@@ -306,9 +306,18 @@ describe('planAfter', () => {
     expect(plan.sets[0]?.targetKg).toBe(40);
   });
 
+  it('plans the week that follows even if a saved copy of the current session exists', () => {
+    const slot = makeSlot({ mode: 'wave', weeks: '3x5@60\n3x5@65\n3x5@70' });
+    const saved = sessionWith('now', day(0), 60, [5, 5, 5]);
+    const plan = planAfter({ ...after, slot, sessions: [saved] }, makeEntry());
+    expect(plan.info).toMatchObject({ mode: 'wave', cycle: 0, week: 1 });
+  });
+
   it('plans a free slot with the slot weight', () => {
     const slot = makeSlot({ mode: 'free', kg: 30 });
-    expect(planAfter({ ...after, slot, sessions: [] }, makeEntry()).info).toEqual({ mode: 'free' });
+    const plan = planAfter({ ...after, slot, sessions: [] }, makeEntry());
+    expect(plan.info).toEqual({ mode: 'free' });
+    expect(plan.sets.map((s) => s.targetKg)).toEqual([30, 30, 30]);
   });
 
   it('matches the wave planned for the following session', () => {
