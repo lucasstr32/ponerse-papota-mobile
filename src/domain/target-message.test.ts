@@ -11,7 +11,6 @@ import {
 } from './builders.fixtures';
 import { snapKg } from './math';
 import { planAfter } from './progression/plan-entry';
-import { heaviest } from './progression/range';
 import { targetMessage } from './target-message';
 import type { TargetMessage, TargetMessageInput } from './target-message';
 
@@ -275,7 +274,7 @@ describe('targetMessage double progression', () => {
             expect(message.mode === 'range' && message.kind === 'achieved').toBe(done);
             expect(missingOf(message) === 0).toBe(done);
             if (message.mode === 'range' && message.kind === 'achieved') {
-              expect(message.kg).toBe(snapKg((heaviest(entry) ?? 0) + 2.5));
+              expect(message.kg).toBe(snapKg(kg + 2.5));
             }
           },
         ),

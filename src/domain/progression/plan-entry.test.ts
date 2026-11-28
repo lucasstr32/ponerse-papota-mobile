@@ -298,18 +298,17 @@ describe('planAfter', () => {
     expect(plan.sets).toHaveLength(3);
   });
 
-  it('leaves out the saved version of the current session', () => {
-    const slot = makeSlot({ mode: 'range' });
-    const saved = sessionWith('now', now.createdAt, 40, [12, 12, 12]);
-    const entry = makeEntry({ sets: workSetsOf(40, [12, 12, 11]) });
-    const plan = planAfter({ ...after, slot, sessions: [saved] }, entry);
-    expect(plan.sets[0]?.targetKg).toBe(40);
-  });
-
   it('plans the week that follows even if a saved copy of the current session exists', () => {
     const slot = makeSlot({ mode: 'wave', weeks: '3x5@60\n3x5@65\n3x5@70' });
     const saved = sessionWith('now', day(0), 60, [5, 5, 5]);
     const plan = planAfter({ ...after, slot, sessions: [saved] }, makeEntry());
+    expect(plan.info).toMatchObject({ mode: 'wave', cycle: 0, week: 1 });
+  });
+
+  it('leaves out another session created at the same time as the current one', () => {
+    const slot = makeSlot({ mode: 'wave', weeks: '3x5@60\n3x5@65\n3x5@70' });
+    const twin = sessionWith('twin', now.createdAt, 60, [5, 5, 5]);
+    const plan = planAfter({ ...after, slot, sessions: [twin] }, makeEntry());
     expect(plan.info).toMatchObject({ mode: 'wave', cycle: 0, week: 1 });
   });
 
