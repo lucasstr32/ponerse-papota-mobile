@@ -7,21 +7,14 @@ import type { TargetMessage, WaveStatus } from '@/domain/target-message';
 
 import { fill, formatTargetMessage } from './target-message';
 
-function wave(
-  status: WaveStatus,
-  next?: Partial<{ cycle: number; segments: number }>,
-): TargetMessage {
+function wave(status: WaveStatus): TargetMessage {
   return {
     mode: 'wave',
     cycle: 0,
     week: 3,
     weeksCount: 4,
     status,
-    next: {
-      cycle: next?.cycle ?? 1,
-      week: 0,
-      segments: [{ sets: 4, reps: '6', kg: 80 }],
-    },
+    next: { cycle: 1, week: 0, segments: [{ sets: 4, reps: '6', kg: 80 }] },
   };
 }
 
@@ -108,6 +101,11 @@ const cases: [string, TargetMessage, string][] = [
     'wave.controlDone rounded to half a kilo',
     wave({ kind: 'controlDone', kg: 80, reps: 5, oneRm: 105.2 }),
     `${header}\nControl hecho: 80 kg × 5 · 1RM ≈ 105 kg\n${nextCycle}`,
+  ],
+  [
+    'wave.controlDone rounded up to half a kilo',
+    wave({ kind: 'controlDone', kg: 80, reps: 6, oneRm: 105.3 }),
+    `${header}\nControl hecho: 80 kg × 6 · 1RM ≈ 105,5 kg\n${nextCycle}`,
   ],
   [
     'wave.controlDoneNoEstimate',
