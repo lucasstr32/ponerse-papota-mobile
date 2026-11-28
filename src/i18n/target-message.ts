@@ -10,9 +10,12 @@ type RangeMessage = Extract<TargetMessage, { mode: 'range' }>;
 type LinearMessage = Extract<TargetMessage, { mode: 'linear' }>;
 type WaveMessage = Extract<TargetMessage, { mode: 'wave' }>;
 
-/** Replaces each `{name}` in the template with the matching parameter. */
-function fill(template: string, params: Record<string, string | number>): string {
-  return template.replace(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? ''));
+/** Replaces each `{name}` in the template with the matching parameter; one without a parameter stays as written. */
+export function fill(template: string, params: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (match, name: string) => {
+    const value = params[name];
+    return value === undefined ? match : String(value);
+  });
 }
 
 function segmentText({ sets, reps, kg }: TargetSegment): string {

@@ -5,7 +5,7 @@ import { makeEntry, makeExercise, makeSlot, workSetsOf } from '@/domain/builders
 import { targetMessage } from '@/domain/target-message';
 import type { TargetMessage, WaveStatus } from '@/domain/target-message';
 
-import { formatTargetMessage } from './target-message';
+import { fill, formatTargetMessage } from './target-message';
 
 function wave(
   status: WaveStatus,
@@ -177,6 +177,12 @@ const cases: [string, TargetMessage, string][] = [
     'Ciclo 2 · semana 4/4\nSemana lograda\nPróxima: semana 1/4 · 1 × máx + 2 × 5 @ 65 kg',
   ],
 ];
+
+describe('fill', () => {
+  it('keeps a placeholder without a parameter visible', () => {
+    expect(fill('Hola {name} {missing}', { name: 'x' })).toBe('Hola x {missing}');
+  });
+});
 
 describe('formatTargetMessage', () => {
   it.each(cases)('writes %s', (_name, message, text) => {
