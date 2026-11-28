@@ -189,6 +189,44 @@ describe('targetMessage double progression', () => {
       expect(message).toMatchObject({ kind: 'progress', kg: 42.5 });
     });
 
+    it('counts a set without weight at its target', () => {
+      const entry = makeEntry({
+        sets: [12, 12, 12].map((reps) => makeSet({ targetKg: 42.5, kg: null, reps })),
+      });
+      expect(targetMessage(input({ entry }))).toEqual({
+        mode: 'range',
+        kind: 'achieved',
+        kg: 45,
+        reps: 10,
+      });
+    });
+
+    it('raises a planned added load that was left empty', () => {
+      const pullups = makeExercise({ bodyweight: true, increment: 2.5 });
+      const slot = makeSlot({ mode: 'range', sets: 4, repMin: 6, repMax: 10, kg: null });
+      const entry = makeEntry({
+        sets: [1, 2, 3, 4].map(() => makeSet({ targetKg: 10, kg: null, reps: 10 })),
+      });
+      expect(targetMessage(input({ exercise: pullups, slot, entry }))).toEqual({
+        mode: 'range',
+        kind: 'achieved',
+        kg: 12.5,
+        reps: 6,
+      });
+    });
+
+    it('still suggests adding difficulty for a zero target without weight', () => {
+      const pullups = makeExercise({ bodyweight: true, increment: 2.5 });
+      const slot = makeSlot({ mode: 'range', sets: 4, repMin: 6, repMax: 10, kg: null });
+      const entry = makeEntry({
+        sets: [1, 2, 3, 4].map(() => makeSet({ targetKg: 0, kg: null, reps: 10 })),
+      });
+      expect(targetMessage(input({ exercise: pullups, slot, entry }))).toEqual({
+        mode: 'range',
+        kind: 'addDifficulty',
+      });
+    });
+
     it('omits a non-positive weight', () => {
       const slot = makeSlot({ mode: 'range', kg: 0 });
       expect(targetMessage(input({ slot }))).toMatchObject({ kind: 'progress', kg: null });

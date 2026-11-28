@@ -49,6 +49,37 @@ describe('planRange', () => {
     expect(plan([session]).sets[0]?.targetKg).toBe(45);
   });
 
+  it('counts a set without weight at its target', () => {
+    const session = makeSession({
+      id: 'a',
+      createdAt: at(1),
+      entries: [
+        makeEntry({
+          sets: [1, 2, 3].map(() =>
+            makeSet({ targetKg: 42.5, targetReps: '10–12', kg: null, reps: 12 }),
+          ),
+        }),
+      ],
+    });
+    expect(plan([session]).sets[0]?.targetKg).toBe(45);
+  });
+
+  it('ignores the target of a set without reps', () => {
+    const session = makeSession({
+      id: 'a',
+      createdAt: at(1),
+      entries: [
+        makeEntry({
+          sets: [
+            ...[1, 2, 3].map(() => makeSet({ kg: 40, reps: 12 })),
+            makeSet({ targetKg: 50, kg: null, reps: null }),
+          ],
+        }),
+      ],
+    });
+    expect(plan([session]).sets[0]?.targetKg).toBe(42.5);
+  });
+
   it('plans from the last session only, even if an older one reached the top', () => {
     const { sets } = plan([
       sessionWith('a', at(1), 40, [12, 12, 12]),

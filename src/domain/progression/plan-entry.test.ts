@@ -25,6 +25,21 @@ describe('planEntry', () => {
     expect(info).toEqual({ mode: 'range' });
   });
 
+  it('plans from the target of a previous set that has reps but no weight', () => {
+    const unweighed = makeEntry({
+      sets: [1, 2, 3].map(() =>
+        makeSet({ targetKg: 42.5, targetReps: '10–12', kg: null, reps: 12 }),
+      ),
+    });
+    const previous = {
+      ...sessionWith('a', '2026-01-01T10:00:00.000Z', 40, [12]),
+      entries: [unweighed],
+    };
+    const slot = makeSlot({ mode: 'range', kg: 40 });
+    const { sets } = planEntry({ ...base, slot, sessions: [previous] });
+    expect(sets[0]?.targetKg).toBe(45);
+  });
+
   it('plans a linear slot', () => {
     const slot = makeSlot({ mode: 'linear', repMin: 5, repMax: 5, kg: 60 });
     const { sets, info } = planEntry({ ...base, slot, sessions: [] });
