@@ -1,8 +1,9 @@
-import { loggedReps } from './history';
+import { loggedReps, workSets } from './history';
 import { planAfter, planEntry } from './progression/plan-entry';
 import type { PlanEntryInput } from './progression/plan-entry';
 import { heaviest } from './progression/range';
-import type { EntryRecord } from './types';
+import { formatRepTarget } from './reps';
+import type { EntryRecord, LinearOutcome } from './types';
 
 export type TargetMessage =
   | { mode: 'free' }
@@ -16,7 +17,9 @@ export type TargetMessage =
       missing: number;
     }
   | { mode: 'range'; kind: 'achieved'; kg: number | null; reps: number }
-  | { mode: 'range'; kind: 'addDifficulty' };
+  | { mode: 'range'; kind: 'addDifficulty' }
+  | { mode: 'linear'; kind: 'pending'; sets: number; reps: string; kg: number | null }
+  | { mode: 'linear'; kind: LinearOutcome; kg: number | null };
 
 export interface TargetMessageInput extends PlanEntryInput {
   current: { id: string; createdAt: string };
@@ -66,6 +69,27 @@ function rangeMessage(input: TargetMessageInput): TargetMessage {
   };
 }
 
+function linearMessage(input: TargetMessageInput): TargetMessage {
+  const { slot, entry } = input;
+  const sets = workSets(entry);
+  if (sets.length === 0 || sets.some((s) => s.reps === null)) {
+    return {
+      mode: 'linear',
+      kind: 'pending',
+      sets: slot.sets,
+      reps: formatRepTarget(slot.repMin, slot.repMax),
+      kg: positiveKg(currentTargetKg(input)),
+    };
+  }
+  const next = planAfter(input, entry);
+  if (next.info.mode !== 'linear' || next.info.lastOutcome === null) return { mode: 'free' };
+  return {
+    mode: 'linear',
+    kind: next.info.lastOutcome,
+    kg: positiveKg(next.sets[0]?.targetKg),
+  };
+}
+
 /**
  * What a slot asks for in the current session and what follows, as data: the screen
  * writes the text. Without automatic progression (free slot, unreadable weeks or an entry
@@ -78,6 +102,7 @@ export function targetMessage(input: TargetMessageInput): TargetMessage {
     case 'range':
       return rangeMessage(input);
     case 'linear':
+      return linearMessage(input);
     case 'wave':
     case 'free':
       return { mode: 'free' };

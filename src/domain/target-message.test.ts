@@ -1,7 +1,16 @@
 import { array, assert, integer, nat, property } from 'fast-check';
 
-import { makeEntry, makeExercise, makeSlot, sessionWith, workSetsOf } from './builders.fixtures';
+import {
+  makeAdjustment,
+  makeEntry,
+  makeExercise,
+  makeSet,
+  makeSlot,
+  sessionWith,
+  workSetsOf,
+} from './builders.fixtures';
 import { snapKg } from './math';
+import { planAfter } from './progression/plan-entry';
 import { heaviest } from './progression/range';
 import { targetMessage } from './target-message';
 import type { TargetMessage, TargetMessageInput } from './target-message';
@@ -25,6 +34,12 @@ function input(overrides: Partial<TargetMessageInput> = {}): TargetMessageInput 
 
 function entryOf(kg: number | null, reps: (number | null)[]) {
   return makeEntry({ sets: workSetsOf(kg, reps) });
+}
+
+function plannedSets(kg: number | null, reps: (number | null)[], failed = false) {
+  return reps.map((r) =>
+    makeSet({ targetKg: kg, targetReps: '5', kg, reps: r, failed: failed && r !== null }),
+  );
 }
 
 function missingOf(message: TargetMessage): number {
@@ -265,5 +280,94 @@ describe('targetMessage double progression', () => {
         }),
       );
     });
+  });
+});
+
+describe('targetMessage linear', () => {
+  const slot = makeSlot({ mode: 'linear', repMin: 5, repMax: 5, kg: 60 });
+  const withEntry = (
+    entry: ReturnType<typeof makeEntry>,
+    extra: Partial<TargetMessageInput> = {},
+  ) => targetMessage(input({ slot, entry, ...extra }));
+
+  it('follows the outcome of three sessions in a row', () => {
+    const first = makeEntry({ sets: plannedSets(60, [5, 5, 5]) });
+    const second = makeEntry({ sets: plannedSets(62.5, [4, 4, 4]) });
+    const third = makeEntry({ sets: plannedSets(62.5, [4, 4, 4]) });
+    const s0 = { ...sessionWith('s0', day(0), 60, [5]), entries: [first] };
+    const s1 = { ...sessionWith('s1', day(1), 62.5, [4]), entries: [second] };
+
+    expect(withEntry(first)).toEqual({ mode: 'linear', kind: 'achieved', kg: 62.5 });
+    expect(withEntry(second, { sessions: [s0] })).toEqual({
+      mode: 'linear',
+      kind: 'firstFail',
+      kg: 62.5,
+    });
+    expect(withEntry(third, { sessions: [s0, s1] })).toEqual({
+      mode: 'linear',
+      kind: 'deload',
+      kg: 57.5,
+    });
+  });
+
+  describe('while sets are missing', () => {
+    it('shows the goal for an empty session', () => {
+      expect(withEntry(makeEntry())).toEqual({
+        mode: 'linear',
+        kind: 'pending',
+        sets: 3,
+        reps: '5',
+        kg: 60,
+      });
+    });
+
+    it('stays pending with a failed set and another without reps', () => {
+      const entry = makeEntry({
+        sets: [
+          makeSet({ targetKg: 60, targetReps: '5', kg: 60, reps: 3, failed: true }),
+          makeSet({ targetKg: 60, targetReps: '5' }),
+        ],
+      });
+      expect(withEntry(entry)).toMatchObject({ kind: 'pending', kg: 60 });
+    });
+
+    it('has no weight when there is none anywhere', () => {
+      const bare = makeSlot({ mode: 'linear', repMin: 5, repMax: 5, kg: null });
+      expect(targetMessage(input({ slot: bare }))).toEqual({
+        mode: 'linear',
+        kind: 'pending',
+        sets: 3,
+        reps: '5',
+        kg: null,
+      });
+    });
+  });
+
+  it('reflects an accepted raise of the current session', () => {
+    const entry = makeEntry({ sets: plannedSets(60, [5, 5, 5]) });
+    const up = makeAdjustment({ sessionId: 'now', rule: 'up', offsetBefore: 0, offsetAfter: 2.5 });
+    expect(withEntry(entry, { adjustments: [up] })).toEqual({
+      mode: 'linear',
+      kind: 'achieved',
+      kg: 65,
+    });
+  });
+
+  it('matches the outcome of the next plan once every set has reps', () => {
+    const history = array(array(nat({ max: 7 }), { minLength: 1, maxLength: 4 }), { maxLength: 4 });
+    assert(
+      property(history, array(nat({ max: 7 }), { minLength: 1, maxLength: 4 }), (past, reps) => {
+        const sessions = past.map((r, i) => ({
+          ...sessionWith(`s${i}`, day(i), 60, [5]),
+          entries: [makeEntry({ sets: plannedSets(60, r) })],
+        }));
+        const entry = makeEntry({ sets: plannedSets(60, reps) });
+        const message = withEntry(entry, { sessions });
+        const info = planAfter({ ...input({ slot, sessions }) }, entry).info;
+        expect(message.mode === 'linear' && message.kind).toBe(
+          info.mode === 'linear' ? info.lastOutcome : null,
+        );
+      }),
+    );
   });
 });
