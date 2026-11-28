@@ -371,3 +371,229 @@ describe('targetMessage linear', () => {
     );
   });
 });
+
+describe('targetMessage weekly wave', () => {
+  const cycleWeeks = '4x6@75\n4x5@80\n5x3@87.5\n1xmáx@87.5 + 2x5@65';
+  const cycleSlot = makeSlot({ mode: 'wave', weeks: cycleWeeks, increment: 5 });
+  const done = (count: number) =>
+    Array.from({ length: count }, (_, i) => sessionWith(`s${i}`, day(i), 70, [5, 5, 5]));
+  const controlWeek = (control: Parameters<typeof makeSet>[0]) =>
+    makeEntry({
+      sets: [
+        makeSet({ type: 'control', targetKg: 87.5, targetReps: 'máx', ...control }),
+        makeSet({ targetKg: 65, targetReps: '5' }),
+        makeSet({ targetKg: 65, targetReps: '5' }),
+      ],
+    });
+  const wave = (overrides: Partial<TargetMessageInput> = {}) =>
+    targetMessage(input({ slot: cycleSlot, sessions: done(3), ...overrides }));
+
+  describe('control week', () => {
+    it('waits for the control set with the planned weight', () => {
+      expect(wave({ entry: controlWeek({}) })).toEqual({
+        mode: 'wave',
+        cycle: 0,
+        week: 3,
+        weeksCount: 4,
+        status: { kind: 'controlPending', kg: 87.5 },
+        next: { cycle: 1, week: 0, segments: [{ sets: 4, reps: '6', kg: 80 }] },
+      });
+    });
+
+    it('estimates the 1RM from the control set', () => {
+      const message = wave({ entry: controlWeek({ kg: 87.5, reps: 7 }) });
+      expect(message).toMatchObject({
+        status: { kind: 'controlDone', kg: 87.5, reps: 7, oneRm: expect.closeTo(110.83, 2) },
+        next: { cycle: 1, week: 0 },
+      });
+    });
+
+    it('stays pending while the weight is empty even with reps', () => {
+      const message = wave({ entry: controlWeek({ kg: null, reps: 7 }) });
+      expect(message).toMatchObject({ status: { kind: 'controlPending', kg: 87.5 } });
+    });
+
+    it('has no estimate for a control of many reps', () => {
+      const message = wave({ entry: controlWeek({ kg: 60, reps: 12 }) });
+      expect(message).toMatchObject({
+        status: { kind: 'controlDone', kg: 60, reps: 12, oneRm: null },
+      });
+    });
+
+    it('uses the last control set', () => {
+      const entry = makeEntry({
+        sets: [
+          makeSet({ type: 'control', kg: 80, reps: 5 }),
+          makeSet({ type: 'control', kg: 87.5, reps: 7 }),
+        ],
+      });
+      expect(wave({ entry })).toMatchObject({
+        status: { kind: 'controlDone', kg: 87.5, reps: 7 },
+      });
+    });
+
+    it('does not let the lighter sets change the state', () => {
+      const entry = controlWeek({ kg: 87.5, reps: 7 });
+      const light = entry.sets.map((s) => (s.type === 'work' ? { ...s, failed: true } : s));
+      expect(wave({ entry: { ...entry, sets: light } })).toMatchObject({
+        status: { kind: 'controlDone' },
+      });
+    });
+
+    it('omits the weight of a control target that is not positive', () => {
+      const entry = controlWeek({ targetKg: null });
+      expect(wave({ entry })).toMatchObject({ status: { kind: 'controlPending', kg: null } });
+    });
+  });
+
+  describe('regular week', () => {
+    const slot = makeSlot({ mode: 'wave', weeks: '3x5@60\n3x5@65', increment: 5 });
+    const week = (reps: (number | null)[], failed = false) =>
+      makeEntry({
+        sets: reps.map((r) =>
+          makeSet({ targetKg: 60, targetReps: '5', kg: 60, reps: r, failed: failed && r !== null }),
+        ),
+      });
+    const status = (entry: ReturnType<typeof makeEntry>) => {
+      const message = targetMessage(input({ slot, entry }));
+      return message.mode === 'wave' ? message.status : null;
+    };
+
+    it('counts the sets still pending', () => {
+      expect(status(week([5, null, null]))).toEqual({ kind: 'pending', remaining: 2 });
+    });
+
+    it('counts every planned set when the entry has none', () => {
+      expect(status(makeEntry())).toEqual({ kind: 'pending', remaining: 3 });
+    });
+
+    it('is not completed under the minimum reps', () => {
+      expect(status(week([5, 5, 4]))).toEqual({ kind: 'notCompleted' });
+    });
+
+    it('is not completed with a failed set', () => {
+      expect(status(week([5, 5, 5], true))).toEqual({ kind: 'notCompleted' });
+    });
+
+    it('is achieved on target', () => {
+      expect(status(week([5, 5, 5]))).toEqual({ kind: 'achieved' });
+    });
+
+    it('has extra margin when every set is two reps over', () => {
+      expect(status(week([7, 8, 7]))).toEqual({ kind: 'extraMargin' });
+    });
+
+    it('is only achieved when one set is one rep over the margin', () => {
+      expect(status(week([7, 7, 6]))).toEqual({ kind: 'achieved' });
+    });
+
+    it('adds no margin when the target reps are unreadable', () => {
+      const entry = makeEntry({
+        sets: [makeSet({ targetReps: '', kg: 60, reps: 30 })],
+      });
+      expect(status(entry)).toEqual({ kind: 'achieved' });
+    });
+  });
+
+  it('shows the last week of the cycle as a deload and plans a regular next one', () => {
+    const slot = makeSlot({ mode: 'wave', weeks: '3x5@60\n3x5@65', increment: 5 });
+    const message = targetMessage(input({ slot, deload: true }));
+    expect(message).toMatchObject({
+      week: 1,
+      next: { cycle: 0, week: 1, segments: [{ sets: 3, reps: '5', kg: 65 }] },
+    });
+  });
+
+  it('groups equal consecutive sets of the next week into segments', () => {
+    const slot = makeSlot({ mode: 'wave', weeks: `${cycleWeeks}\n${cycleWeeks}`, increment: 5 });
+    const message = targetMessage(input({ slot, sessions: done(2) }));
+    expect(message).toMatchObject({
+      week: 2,
+      next: {
+        week: 3,
+        segments: [
+          { sets: 1, reps: 'máx', kg: 87.5 },
+          { sets: 2, reps: '5', kg: 65 },
+        ],
+      },
+    });
+  });
+
+  it('leaves the weight out of percentage segments', () => {
+    const slot = makeSlot({ mode: 'wave', weeks: '3x5@70%\n2x3@80%' });
+    const message = targetMessage(input({ slot }));
+    expect(message).toMatchObject({
+      next: {
+        segments: [{ sets: 2, reps: '3', kg: null }],
+      },
+    });
+  });
+
+  it('includes the slot offset in the next week', () => {
+    const slot = makeSlot({ mode: 'wave', weeks: '3x5@60\n3x5@65', offsetKg: 2.5 });
+    expect(targetMessage(input({ slot }))).toMatchObject({
+      next: { segments: [{ sets: 3, reps: '5', kg: 67.5 }] },
+    });
+  });
+
+  it('does not advance the week after a hold of an earlier session', () => {
+    const hold = makeAdjustment({ sessionId: 's1', rule: 'hold' });
+    expect(wave({ sessions: done(2), adjustments: [hold] })).toMatchObject({
+      week: 1,
+      next: { week: 2 },
+    });
+  });
+
+  describe('properties', () => {
+    const lines = integer({ min: 1, max: 4 });
+    const weeksOf = (length: number) =>
+      Array.from({ length }, (_, i) => `3x5@${60 + 5 * i}`).join('\n');
+
+    it('is pending exactly when a set has no reps', () => {
+      assert(
+        property(
+          lines,
+          array(
+            nat({ max: 8 }).chain((r) => integer({ min: 0, max: 1 }).map((k) => (k ? null : r))),
+            {
+              minLength: 1,
+              maxLength: 4,
+            },
+          ),
+          (length, reps) => {
+            const slot = makeSlot({ mode: 'wave', weeks: weeksOf(length) });
+            const entry = makeEntry({
+              sets: reps.map((r) => makeSet({ targetReps: '5', kg: 60, reps: r })),
+            });
+            const message = targetMessage(input({ slot, entry }));
+            expect(message.mode === 'wave' && message.status.kind === 'pending').toBe(
+              reps.some((r) => r === null),
+            );
+          },
+        ),
+      );
+    });
+
+    it('moves to the following week of the cycle without logs', () => {
+      assert(
+        property(lines, integer({ min: 0, max: 8 }), (length, count) => {
+          const slot = makeSlot({ mode: 'wave', weeks: weeksOf(length) });
+          const message = targetMessage(input({ slot, sessions: done(count) }));
+          expect(message.mode === 'wave' && message.next.week).toBe((count + 1) % length);
+        }),
+      );
+    });
+
+    it('does not depend on the order of the sessions', () => {
+      assert(
+        property(lines, integer({ min: 0, max: 8 }), (length, count) => {
+          const slot = makeSlot({ mode: 'wave', weeks: weeksOf(length) });
+          const sessions = done(count);
+          const forward = targetMessage(input({ slot, sessions }));
+          const backward = targetMessage(input({ slot, sessions: [...sessions].reverse() }));
+          expect(backward).toEqual(forward);
+        }),
+      );
+    });
+  });
+});
