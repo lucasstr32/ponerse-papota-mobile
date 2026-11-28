@@ -2,7 +2,8 @@ import { assert, array, constantFrom, integer, nat, property, string, tuple } fr
 
 import { formatDecimal } from './num';
 import { formatRepTarget } from './reps';
-import { parseWeeks } from './weeks';
+import { formatWeeks, parseWeeks } from './weeks';
+import type { WaveWeek } from './weeks';
 
 describe('parseWeeks', () => {
   it('parses ranges, max and comma decimals and drops invalid lines', () => {
@@ -101,6 +102,55 @@ describe('parseWeeks', () => {
         const weeks = parseWeeks(text);
         expect(weeks.every((w) => w.length > 0)).toBe(true);
       }),
+    );
+  });
+});
+
+describe('formatWeeks', () => {
+  it('writes the weeks back identically', () => {
+    const text = '4x6@75\n4x5@80\n5x3@87.5\n1xmáx@87.5 + 2x5@65';
+    expect(formatWeeks(parseWeeks(text))).toBe(text);
+  });
+
+  it('normalizes the text', () => {
+    expect(formatWeeks(parseWeeks('3 x 8-10 @ 52,5\n1xMAX@60\nbasura'))).toBe(
+      '3x8–10@52.5\n1xmáx@60',
+    );
+  });
+
+  it('keeps percentages', () => {
+    expect(formatWeeks(parseWeeks('4x6@75%'))).toBe('4x6@75%');
+    expect(formatWeeks(parseWeeks('3x5@72.5%'))).toBe('3x5@72.5%');
+  });
+
+  it('writes nothing for no weeks', () => {
+    expect(formatWeeks([])).toBe('');
+  });
+
+  it('round trips through the parser', () => {
+    const segment = tuple(
+      integer({ min: 1, max: 999 }),
+      constantFrom('single', 'range', 'max'),
+      integer({ min: 1, max: 30 }),
+      integer({ min: 1, max: 30 }),
+      integer({ min: 0, max: 100000 }),
+      constantFrom(false, true),
+    );
+    assert(
+      property(
+        array(array(segment, { minLength: 1, maxLength: 4 }), { minLength: 1, maxLength: 6 }),
+        (raw) => {
+          const weeks: WaveWeek[] = raw.map((week) =>
+            week.map(([sets, kind, a, d, hundredths, pct]) => ({
+              sets,
+              reps: kind === 'single' ? String(a) : kind === 'range' ? `${a}–${a + d}` : 'máx',
+              kg: hundredths / 100,
+              pct,
+            })),
+          );
+          expect(parseWeeks(formatWeeks(weeks))).toEqual(weeks);
+        },
+      ),
     );
   });
 });

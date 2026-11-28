@@ -1,4 +1,23 @@
-import type { EntryRecord, ExerciseInfo, SessionRecord, SetRecord, SlotConfig } from './types';
+import type {
+  AdjustmentLog,
+  EntryRecord,
+  ExerciseInfo,
+  SessionRecord,
+  SetRecord,
+  SlotConfig,
+} from './types';
+
+export function makeAdjustment(overrides: Partial<AdjustmentLog> = {}): AdjustmentLog {
+  return {
+    slotUid: 'slot1',
+    sessionId: 's1',
+    rule: 'up',
+    offsetBefore: 0,
+    offsetAfter: 0,
+    accepted: true,
+    ...overrides,
+  };
+}
 
 export function makeExercise(overrides: Partial<ExerciseInfo> = {}): ExerciseInfo {
   return {
@@ -66,6 +85,16 @@ export function makeSession(overrides: Partial<SessionRecord> = {}): SessionReco
     entries: [],
     ...overrides,
   };
+}
+
+/** A session holding a single entry of the given exercise with the given sets. */
+export function sessionOfSets(
+  id: string,
+  createdAt: string,
+  exerciseId: string,
+  sets: SetRecord[],
+): SessionRecord {
+  return makeSession({ id, createdAt, entries: [makeEntry({ exerciseId, sets })] });
 }
 
 /** A session holding a single entry for slot1 with equal-weight work sets. */

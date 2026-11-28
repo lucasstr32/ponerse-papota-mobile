@@ -4,7 +4,7 @@ import { makeEntry, makeExercise, makeSet, makeSlot } from '../builders.fixtures
 import { round25 } from '../math';
 import { formatDecimal, num } from '../num';
 import type { EntryRecord } from '../types';
-import { planLinear } from './linear';
+import { isAchieved, planLinear } from './linear';
 
 const slot = makeSlot({ mode: 'linear', sets: 3, repMin: 5, repMax: 5, kg: 60 });
 const exercise = makeExercise({ increment: 2.5 });
@@ -62,6 +62,28 @@ describe('planLinear', () => {
     const result = planLinear(slot, exercise, [entry]);
     expect(result.sets[0]?.targetKg).toBe(60);
     expect(result.info).toEqual({ mode: 'linear', fails: 1, lastOutcome: 'firstFail' });
+  });
+
+  it('counts a set marked as failed as missed even with full reps', () => {
+    const failedEntry = makeEntry({
+      sets: [5, 5, 5].map((r, i) =>
+        makeSet({ targetKg: 60, targetReps: '5', kg: 60, reps: r, failed: i === 2 }),
+      ),
+    });
+    const result = planLinear(slot, exercise, [failedEntry]);
+    expect(result.sets[0]?.targetKg).toBe(60);
+    expect(result.info).toEqual({ mode: 'linear', fails: 1, lastOutcome: 'firstFail' });
+  });
+
+  it('deloads after two sessions with a set marked as failed', () => {
+    const failedEntry = makeEntry({
+      sets: [5, 5, 5].map((r, i) =>
+        makeSet({ targetKg: 60, targetReps: '5', kg: 60, reps: r, failed: i === 0 }),
+      ),
+    });
+    const result = planLinear(slot, exercise, [failedEntry, failedEntry]);
+    expect(result.sets[0]?.targetKg).toBe(round25(60 * 0.9));
+    expect(result.info).toEqual({ mode: 'linear', fails: 0, lastOutcome: 'deload' });
   });
 
   it('resets the fail counter after an achieved session', () => {
@@ -140,6 +162,87 @@ describe('planLinear', () => {
         },
       ),
     );
+  });
+
+  describe('with an accepted raise', () => {
+    it('adds the raise to the weight after an achieved session', () => {
+      expect(planLinear(slot, exercise, [session(60, true)], [2.5]).sets[0]?.targetKg).toBe(65);
+    });
+
+    it('carries the raise once, not again on the next achieved session', () => {
+      const history = [session(60, true), session(65, true)];
+      expect(planLinear(slot, exercise, history, [2.5, 0]).sets[0]?.targetKg).toBe(67.5);
+    });
+
+    it('applies the raise to whatever weight the engine leaves, even after a first fail', () => {
+      const result = planLinear(slot, exercise, [session(60, false)], [2.5]);
+      expect(result.sets[0]?.targetKg).toBe(62.5);
+      expect(result.info).toEqual({ mode: 'linear', fails: 1, lastOutcome: 'firstFail' });
+    });
+
+    it('keeps the weight empty when nothing was loaded', () => {
+      const empty = makeSlot({ ...slot, kg: null });
+      expect(
+        planLinear(empty, exercise, [session(null, true, null)], [2.5]).sets[0]?.targetKg,
+      ).toBeNull();
+    });
+
+    it('ignores the slot offset', () => {
+      const shifted = makeSlot({ ...slot, offsetKg: 5 });
+      expect(planLinear(shifted, exercise, [session(60, true)], [2.5]).sets[0]?.targetKg).toBe(65);
+      expect(planLinear(shifted, exercise, []).sets[0]?.targetKg).toBe(60);
+    });
+
+    it('gives the same plan with no raises as with zero raises', () => {
+      assert(
+        property(array(boolean(), { minLength: 1, maxLength: 12 }), (outcomes) => {
+          const history = outcomes.map((achieved) => session(60, achieved));
+          const zeros = outcomes.map(() => 0);
+          expect(planLinear(slot, exercise, history, zeros)).toEqual(
+            planLinear(slot, exercise, history),
+          );
+        }),
+      );
+    });
+  });
+
+  describe('isAchieved', () => {
+    it('is true when every set has the reps and the target weight', () => {
+      expect(isAchieved(session(60, true), slot)).toBe(true);
+    });
+
+    it('is false with reps under the minimum', () => {
+      expect(isAchieved(session(60, false), slot)).toBe(false);
+    });
+
+    it('is false when a set is marked as failed or has no reps', () => {
+      const failed = makeEntry({
+        sets: [makeSet({ targetKg: 60, targetReps: '5', kg: 60, reps: 5, failed: true })],
+      });
+      const empty = makeEntry({
+        sets: [makeSet({ targetKg: 60, targetReps: '5', kg: 60, reps: null })],
+      });
+      expect(isAchieved(failed, slot)).toBe(false);
+      expect(isAchieved(empty, slot)).toBe(false);
+    });
+
+    it('is false when a set was loaded under the target and true when it is empty', () => {
+      expect(isAchieved(session(60, true, 55), slot)).toBe(false);
+      expect(isAchieved(session(60, true, null), slot)).toBe(true);
+    });
+
+    it('agrees with the engine over any sequence', () => {
+      assert(
+        property(array(boolean(), { minLength: 1, maxLength: 8 }), (outcomes) => {
+          const history = outcomes.map((achieved) => session(60, achieved));
+          const last = history[history.length - 1];
+          const result = planLinear(slot, exercise, history);
+          const outcome = result.info.mode === 'linear' ? result.info.lastOutcome : null;
+          if (last !== undefined && isAchieved(last, slot)) expect(outcome).toBe('achieved');
+          else expect(outcome).not.toBe('achieved');
+        }),
+      );
+    });
   });
 
   it('ignores warm-up sets of the previous entry', () => {

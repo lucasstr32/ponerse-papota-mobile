@@ -1,4 +1,4 @@
-import { num } from './num';
+import { formatDecimal, num } from './num';
 import { formatRepTarget } from './reps';
 
 export interface WaveSegment {
@@ -40,4 +40,17 @@ export function parseWeeks(text: string): WaveWeek[] {
     if (segments.length > 0) weeks.push(segments);
   }
   return weeks;
+}
+
+/** Writes weeks back as text: one line per week, segments joined by " + ", point decimals. */
+export function formatWeeks(weeks: readonly WaveWeek[]): string {
+  return weeks
+    .map((week) =>
+      week
+        .map(
+          (s) => `${s.sets}x${s.reps}@${formatDecimal(s.kg).replace(',', '.')}${s.pct ? '%' : ''}`,
+        )
+        .join(' + '),
+    )
+    .join('\n');
 }
