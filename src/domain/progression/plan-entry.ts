@@ -61,9 +61,7 @@ function planByMode(
     case 'wave': {
       const n = waveIndex(slot.uid, timeline, adjustments);
       const wave = planWave(slot, exercise, n, { deload });
-      return wave.info.mode === 'wave' && wave.info.invalidWeeks
-        ? { sets: planFree(slot).sets, info: wave.info }
-        : wave;
+      return wave.info.invalidWeeks ? { sets: planFree(slot).sets, info: wave.info } : wave;
     }
     case 'free':
       return planFree(slot);
@@ -84,7 +82,9 @@ export function planEntry(input: PlanEntryInput): Plan {
  * `entry`. The entry is always added to the slot history, even without work, so a wave
  * moves on to the next week. The next session is planned as a regular one (no deload: its
  * block week is not known here), without warm-ups. Adjustment proposals are not applied;
- * accepted logs, including those of the current session, are.
+ * accepted logs, including those of the current session, are. For double and linear
+ * progression it is only meaningful once `entry` is complete: an unfinished entry is
+ * planned as if the session ended there.
  */
 export function planAfter(
   input: PlanEntryInput & { current: { id: string; createdAt: string } },

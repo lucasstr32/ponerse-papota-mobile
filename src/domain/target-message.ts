@@ -61,7 +61,7 @@ function positiveKg(kg: number | null | undefined): number | null {
   return kg === null || kg === undefined || kg <= 0 ? null : kg;
 }
 
-/** Heaviest target weight of the current session's work sets. */
+/** Target weight of the current session's work sets (range and linear plan them all alike). */
 function currentTargetKg(input: TargetMessageInput): number | null {
   const plan = planEntry({ ...input, slot: { ...input.slot, warmup: 'none' } });
   return plan.sets[0]?.targetKg ?? null;
@@ -111,6 +111,7 @@ function linearMessage(input: TargetMessageInput): TargetMessage {
     };
   }
   const next = planAfter(input, entry);
+  // `planAfter` of a linear slot always reports an outcome, since the live entry is in its history.
   if (next.info.mode !== 'linear' || next.info.lastOutcome === null) return { mode: 'free' };
   return {
     mode: 'linear',
@@ -129,9 +130,10 @@ function isLoaded(set: SetRecord): set is LoadedSet {
 function controlStatus(control: readonly SetRecord[]): WaveStatus {
   const loaded = control.filter(isLoaded);
   const last = loaded[loaded.length - 1];
-  if (loaded.length < control.length || last === undefined) {
+  if (last === undefined || loaded.length < control.length) {
     return {
       kind: 'controlPending',
+      // The `?.` only satisfies the types: an unloaded control set exists on this path.
       kg: positiveKg(control.find((s) => !isLoaded(s))?.targetKg),
     };
   }
@@ -183,9 +185,8 @@ function waveMessage(input: TargetMessageInput): TargetMessage {
   const n = waveIndex(slot.uid, slotTimeline(sessions, slot, current), adjustments);
   const now = planWave(slot, exercise, n, { deload });
   const next = planAfter(input, entry);
-  if (now.info.mode !== 'wave' || now.info.invalidWeeks || next.info.mode !== 'wave') {
-    return { mode: 'free' };
-  }
+  // `planAfter` of a wave slot always plans a wave; the check only narrows the type.
+  if (now.info.invalidWeeks || next.info.mode !== 'wave') return { mode: 'free' };
   const control = entry.sets.filter((s) => s.type === 'control');
   const status =
     control.length > 0

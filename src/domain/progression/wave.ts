@@ -1,8 +1,13 @@
 import { snapKg } from '../math';
-import type { ExerciseInfo, PlannedSet, SlotConfig } from '../types';
+import type { EngineInfo, ExerciseInfo, PlannedSet, SlotConfig } from '../types';
 import { parseWeeks } from '../weeks';
 import type { WaveSegment } from '../weeks';
 import type { Plan } from './range';
+
+/** A plan whose info is known to be the wave's. */
+export interface WavePlan extends Plan {
+  info: Extract<EngineInfo, { mode: 'wave' }>;
+}
 
 function segmentSets(segment: WaveSegment, targetKg: number | null): PlannedSet[] {
   const control = segment.reps === 'máx';
@@ -22,7 +27,7 @@ export function planWave(
   exercise: ExerciseInfo,
   n: number,
   options: { deload: boolean },
-): Plan {
+): WavePlan {
   const weeks = parseWeeks(slot.weeks);
   const count = weeks.length;
   const cycle = count === 0 ? 0 : Math.floor(n / count);
