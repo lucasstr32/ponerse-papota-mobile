@@ -115,6 +115,16 @@ const cases: [string, TargetMessage, string][] = [
     `${header}\nControl hecho: 60 kg × 12 · sin 1RM estimado\n${nextCycle}`,
   ],
   [
+    'wave.controlDoneNoKgMany',
+    wave({ kind: 'controlDone', kg: null, reps: 7, oneRm: null }),
+    `${header}\nControl hecho: 7 reps · sin 1RM estimado\n${nextCycle}`,
+  ],
+  [
+    'wave.controlDoneNoKgOne',
+    wave({ kind: 'controlDone', kg: null, reps: 1, oneRm: null }),
+    `${header}\nControl hecho: 1 rep · sin 1RM estimado\n${nextCycle}`,
+  ],
+  [
     'wave.pendingOne',
     wave({ kind: 'pending', remaining: 1 }),
     `${header}\nFalta 1 serie\n${nextCycle}`,
@@ -206,6 +216,12 @@ describe('formatTargetMessage', () => {
           integer({ min: 1, max: 4000 }).map((x) => x / 10),
         ).map((oneRm): WaveStatus => ({ kind: 'controlDone', kg: k / 2, reps: 5, oneRm })),
       ),
+      integer({ min: 0, max: 15 }).map((reps): WaveStatus => ({
+        kind: 'controlDone',
+        kg: null,
+        reps,
+        oneRm: null,
+      })),
       integer({ min: 1, max: 9 }).map((remaining): WaveStatus => ({ kind: 'pending', remaining })),
       constant<WaveStatus>({ kind: 'notCompleted' }),
       constant<WaveStatus>({ kind: 'achieved' }),

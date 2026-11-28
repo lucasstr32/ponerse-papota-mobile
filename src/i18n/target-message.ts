@@ -28,6 +28,11 @@ function statusText(status: WaveStatus): string {
         ? text.wave.controlPendingNoKg
         : fill(text.wave.controlPending, { kg: formatDecimal(status.kg) });
     case 'controlDone': {
+      if (status.kg === null) {
+        return status.reps === 1
+          ? text.wave.controlDoneNoKgOne
+          : fill(text.wave.controlDoneNoKgMany, { reps: status.reps });
+      }
       const params = { kg: formatDecimal(status.kg), reps: status.reps };
       return status.oneRm === null
         ? fill(text.wave.controlDoneNoEstimate, params)

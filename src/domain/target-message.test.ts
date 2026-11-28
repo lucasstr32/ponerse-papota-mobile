@@ -481,6 +481,29 @@ describe('targetMessage weekly wave', () => {
     it('omits the weight of a control target that is not positive', () => {
       const entry = controlWeek({ targetKg: null });
       expect(wave({ entry })).toMatchObject({ status: { kind: 'controlPending', kg: null } });
+      for (const targetKg of [0, -5]) {
+        expect(wave({ entry: controlWeek({ targetKg }) })).toMatchObject({
+          status: { kind: 'controlPending', kg: null },
+        });
+      }
+    });
+
+    it('leaves out the weight and the estimate of a control that is not positive', () => {
+      for (const kg of [0, -5]) {
+        expect(wave({ entry: controlWeek({ kg, reps: 7 }) })).toMatchObject({
+          status: { kind: 'controlDone', kg: null, reps: 7, oneRm: null },
+        });
+      }
+    });
+
+    it('stays pending for an empty control after a loaded one', () => {
+      const entry = makeEntry({
+        sets: [
+          makeSet({ type: 'control', kg: 80, reps: 5 }),
+          makeSet({ type: 'control', targetKg: 87.5 }),
+        ],
+      });
+      expect(wave({ entry })).toMatchObject({ status: { kind: 'controlPending', kg: 87.5 } });
     });
   });
 

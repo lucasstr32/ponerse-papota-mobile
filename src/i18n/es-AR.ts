@@ -31,6 +31,8 @@ export const esAR = {
       controlPendingNoKg: 'Serie de control: el máximo de reps dejando 1 en reserva',
       controlDone: 'Control hecho: {kg} kg × {reps} · 1RM ≈ {oneRm} kg',
       controlDoneNoEstimate: 'Control hecho: {kg} kg × {reps} · sin 1RM estimado',
+      controlDoneNoKgOne: 'Control hecho: 1 rep · sin 1RM estimado',
+      controlDoneNoKgMany: 'Control hecho: {reps} reps · sin 1RM estimado',
       pendingOne: 'Falta 1 serie',
       pendingMany: 'Faltan {count} series',
       notCompleted: 'Semana no completada',

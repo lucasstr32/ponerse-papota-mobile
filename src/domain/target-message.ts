@@ -20,6 +20,7 @@ export interface TargetSegment {
 export type WaveStatus =
   | { kind: 'controlPending'; kg: number | null }
   | { kind: 'controlDone'; kg: number; reps: number; oneRm: number | null }
+  | { kind: 'controlDone'; kg: null; reps: number; oneRm: null }
   | { kind: 'pending'; remaining: number }
   | { kind: 'notCompleted' }
   | { kind: 'achieved' }
@@ -134,7 +135,9 @@ function controlStatus(control: readonly SetRecord[]): WaveStatus {
       kg: positiveKg(control.find((s) => !isLoaded(s))?.targetKg),
     };
   }
-  return { kind: 'controlDone', kg: last.kg, reps: last.reps, oneRm: controlOneRm(last) };
+  const kg = positiveKg(last.kg);
+  if (kg === null) return { kind: 'controlDone', kg: null, reps: last.reps, oneRm: null };
+  return { kind: 'controlDone', kg, reps: last.reps, oneRm: controlOneRm(last) };
 }
 
 /** State of a regular week: pending, then not completed, then extra margin, then achieved. */
